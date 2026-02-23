@@ -10,7 +10,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:5000/api/auth/google';
+    window.location.href = '${process.env.REACT_APP_API_URL}/api/auth/google';
   };
 
   const handleChange = (e) => {
@@ -22,7 +22,7 @@ export default function Login() {
     if (form.password !== form.confirm) return setError('Passwords do not match');
     setLoading(true);
     try {
-      const { data } = await axios.post('http://localhost:5000/api/auth/signup', {
+      const { data } = await axios.post('${process.env.REACT_APP_API_URL}/api/auth/signup', {
         name: form.name, email: form.email, password: form.password
       });
       localStorage.setItem('token', data.token);
@@ -37,7 +37,7 @@ export default function Login() {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const { data } = await axios.post('http://localhost:5000/api/auth/login', {
+      const { data } = await axios.post('${process.env.REACT_APP_API_URL}/api/auth/login', {
         email: form.email, password: form.password
       });
       localStorage.setItem('token', data.token);

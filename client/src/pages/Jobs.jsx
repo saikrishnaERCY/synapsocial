@@ -14,7 +14,7 @@ export default function Jobs() {
     setData(null);
     setError(null);
     try {
-      const res = await axios.get(`http://localhost:5000/api/jobs/scan/${user.id}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/jobs/scan/${user.id}`);
       setData(res.data);
     } catch (err) {
       const msg = err.response?.data?.message;

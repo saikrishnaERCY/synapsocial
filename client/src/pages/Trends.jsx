@@ -14,7 +14,7 @@ export default function Trends() {
     setTrends([]);
     setIdeas([]);
     try {
-      const { data } = await axios.get(`http://localhost:5000/api/trends?niche=${niche}`);
+      const { data } = await axios.get(`${process.env.REACT_APP_API_URL}/api/trends?niche=${niche}`);
       setTrends(data.trending || []);
       setIdeas(data.ideas || []);
     } catch {

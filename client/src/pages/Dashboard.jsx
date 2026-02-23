@@ -44,7 +44,7 @@ export default function Dashboard() {
 
   const storedUser = localStorage.getItem('user');
   if (!storedUser || storedUser === '{}') {
-    axios.get('http://localhost:5000/api/auth/me', { withCredentials: true })
+    axios.get('${process.env.REACT_APP_API_URL}/api/auth/me', { withCredentials: true })
       .then(({ data }) => {
         localStorage.setItem('user', JSON.stringify({
           id: data.user._id, name: data.user.name, email: data.user.email
@@ -67,7 +67,7 @@ export default function Dashboard() {
 
     const fetchChats = async () => {
         try {
-            const { data } = await axios.get(`http://localhost:5000/api/chats/${user.id}`);
+            const { data } = await axios.get(`${process.env.REACT_APP_API_URL}/api/chats/${user.id}`);
             setChats(data.chats || []);
         } catch (err) { console.error(err); }
     };
@@ -81,7 +81,7 @@ export default function Dashboard() {
 
     const loadChat = async (chatId) => {
         try {
-            const { data } = await axios.get(`http://localhost:5000/api/chats/messages/${chatId}`);
+            const { data } = await axios.get(`${process.env.REACT_APP_API_URL}/api/chats/messages/${chatId}`);
             setActiveChatId(chatId);
             setMessages(data.chat.messages.map(m => ({
                 role: m.role,
@@ -95,14 +95,14 @@ export default function Dashboard() {
 
     const deleteChat = async (e, chatId) => {
         e.stopPropagation();
-        await axios.delete(`http://localhost:5000/api/chats/delete/${chatId}`);
+        await axios.delete(`${process.env.REACT_APP_API_URL}/api/chats/delete/${chatId}`);
         setChats(prev => prev.filter(c => c._id !== chatId));
         if (activeChatId === chatId) startNewChat();
     };
 
     const saveMessage = async (message, chatId, title) => {
         try {
-            const { data } = await axios.post('http://localhost:5000/api/chats/save', {
+            const { data } = await axios.post('${process.env.REACT_APP_API_URL}/api/chats/save', {
                 chatId, userId: user.id, message, title
             });
             if (!chatId) {
@@ -166,10 +166,10 @@ export default function Dashboard() {
         let currentChatId = activeChatId;
 
         if (!currentChatId) {
-            const newChat = await axios.post('http://localhost:5000/api/chats/new', { userId: user.id });
+            const newChat = await axios.post('${process.env.REACT_APP_API_URL}/api/chats/new', { userId: user.id });
             currentChatId = newChat.data.chat._id;
             setActiveChatId(currentChatId);
-            await axios.post('http://localhost:5000/api/chats/save', {
+            await axios.post('${process.env.REACT_APP_API_URL}/api/chats/save', {
                 chatId: currentChatId,
                 userId: user.id,
                 message: { role: 'user', text: displayText, fileName: currentFile?.name, timestamp: new Date() },
@@ -189,7 +189,7 @@ export default function Dashboard() {
             if (currentFile) formData.append('file', currentFile);
 
             const { data } = await axios.post(
-                'http://localhost:5000/api/ai/chat', formData,
+                '${process.env.REACT_APP_API_URL}/api/ai/chat', formData,
                 { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } }
             );
 
@@ -220,7 +220,7 @@ export default function Dashboard() {
                 setMessages(prev => [...prev, mediaMsg]);
             }
 
-            await axios.post('http://localhost:5000/api/chats/save', {
+            await axios.post('${process.env.REACT_APP_API_URL}/api/chats/save', {
                 chatId: currentChatId,
                 userId: user.id,
                 message: { role: 'ai', text: data.reply, showActions: true, fileType, fileName: currentFile?.name, timestamp: new Date() }
@@ -255,7 +255,7 @@ export default function Dashboard() {
       const blob = new Blob([byteArray], { type: mediaData.mimeType });
       formData.append('media', blob, mediaData.name);
 
-      await axios.post('http://localhost:5000/api/ai/post/linkedin/video', formData, {
+      await axios.post('${process.env.REACT_APP_API_URL}/api/ai/post/linkedin/video', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
     } else {
@@ -266,7 +266,7 @@ export default function Dashboard() {
         postData.mediaMimeType = mediaData.mimeType;
         postData.mediaName = mediaData.name;
       }
-      await axios.post('http://localhost:5000/api/ai/post/linkedin', postData);
+      await axios.post('${process.env.REACT_APP_API_URL}/api/ai/post/linkedin', postData);
     }
 
     setMessages(prev => [...prev, {
@@ -286,7 +286,7 @@ export default function Dashboard() {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const { data } = await axios.post('http://localhost:5000/api/ai/chat',
+            const { data } = await axios.post('${process.env.REACT_APP_API_URL}/api/ai/chat',
                 { message: `Enhance and improve this content for ${platform}:\n\n${content}`, platform },
                 { headers: { Authorization: `Bearer ${token}` } }
             );

@@ -6,7 +6,7 @@ const platformConfig = [
     id: 'linkedin', name: 'LinkedIn', icon: '💼', color: '#0077b5',
     description: '',
     features: ['Auto Post', 'Reply Comments', 'Job Applications'],
-    authUrl: 'http://localhost:5000/api/platforms/linkedin',
+    authUrl: '${process.env.REACT_APP_API_URL}/api/platforms/linkedin',
     permissions: [
       { key: 'linkedinAutoPost', label: '📤 Auto-Post', desc: 'AI posts on your behalf' },
       { key: 'linkedinReplyComments', label: '💬 Reply Comments', desc: 'AI replies to comments' },
@@ -24,7 +24,7 @@ const platformConfig = [
     id: 'youtube', name: 'YouTube', icon: '🎥', color: '#ff0000',
     description: '',
     features: ['Upload Videos', 'Reply Comments', 'Auto Post'],
-    authUrl: 'http://localhost:5000/api/platforms/youtube/connect',
+    authUrl: '${process.env.REACT_APP_API_URL}/api/platforms/youtube/connect',
     permissions: [
       { key: 'youtubeAutoPost', label: '🎥 Auto-Upload Videos', desc: 'AI uploads videos automatically' },
       { key: 'youtubeReplyComments', label: '💬 Auto-Reply Comments', desc: 'AI replies to comments automatically' },
@@ -59,7 +59,7 @@ export default function Platforms() {
 
   const fetchStatus = async () => {
     try {
-      const { data } = await axios.get(`http://localhost:5000/api/platforms/status/${user.id}`);
+      const { data } = await axios.get(`${process.env.REACT_APP_API_URL}/api/platforms/status/${user.id}`);
       setConnected(data.platforms || {});
       setPermissions({
         linkedinAutoPost: data.permissions?.linkedinAutoPost || false,
@@ -80,7 +80,7 @@ export default function Platforms() {
   };
 
   const disconnectPlatform = async (platformId) => {
-    await axios.post('http://localhost:5000/api/platforms/disconnect', { userId: user.id, platform: platformId });
+    await axios.post('${process.env.REACT_APP_API_URL}/api/platforms/disconnect', { userId: user.id, platform: platformId });
     setConnected(prev => ({ ...prev, [platformId]: false }));
   };
 
@@ -88,7 +88,7 @@ export default function Platforms() {
     const updated = { ...permissions, [key]: !permissions[key] };
     setPermissions(updated);
     try {
-      await axios.post('http://localhost:5000/api/platforms/permissions', { userId: user.id, permissions: updated });
+      await axios.post('${process.env.REACT_APP_API_URL}/api/platforms/permissions', { userId: user.id, permissions: updated });
       setSaveMsg('✅ Saved!');
       setTimeout(() => setSaveMsg(''), 2000);
     } catch { setSaveMsg('❌ Failed'); }
@@ -110,7 +110,7 @@ export default function Platforms() {
     const form = new FormData();
     form.append('resume', resume);
     try {
-      const { data } = await axios.post(`http://localhost:5000/api/platforms/resume?userId=${user.id}`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await axios.post(`${process.env.REACT_APP_API_URL}/api/platforms/resume?userId=${user.id}`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
       setResumeName(data.filename);
       setResume(null);
       setSaveMsg('✅ Resume uploaded!');
@@ -251,7 +251,7 @@ function YTComments({ userId }) {
   const [dontAskAgain] = useState(() => localStorage.getItem('yt_auto_reply') === 'true');
 
   useEffect(() => {
-    axios.get(`http://localhost:5000/api/platforms/youtube/comments/${userId}`)
+    axios.get(`${process.env.REACT_APP_API_URL}/api/platforms/youtube/comments/${userId}`)
       .then(({ data }) => {
         const now = Date.now();
         const last24h = (data.comments || []).filter(c => {
@@ -268,7 +268,7 @@ function YTComments({ userId }) {
     setReplyLoading(prev => ({ ...prev, [comment.id]: true }));
     try {
       const { data } = await axios.post(
-        'http://localhost:5000/api/platforms/youtube/comment/ai-reply',
+        '${process.env.REACT_APP_API_URL}/api/platforms/youtube/comment/ai-reply',
         { comment: comment.text, videoTitle: comment.videoTitle }
       );
       if (dontAskAgain) {
@@ -282,7 +282,7 @@ function YTComments({ userId }) {
 
   const doPostReply = async (commentId, reply) => {
     try {
-      await axios.post('http://localhost:5000/api/platforms/youtube/comment/reply', { userId, commentId, reply });
+      await axios.post('${process.env.REACT_APP_API_URL}/api/platforms/youtube/comment/reply', { userId, commentId, reply });
       setComments(prev => prev.map(c => c.id === commentId ? { ...c, replied: true } : c));
       setConfirmPopup(null);
     } catch (err) { alert('❌ ' + (err.response?.data?.message || 'Reply failed')); }
@@ -296,7 +296,7 @@ function YTComments({ userId }) {
 
   const likeComment = async (commentId) => {
     setLikedComments(prev => ({ ...prev, [commentId]: true }));
-    try { await axios.post('http://localhost:5000/api/platforms/youtube/comment/like', { userId, commentId }); } catch (e) {}
+    try { await axios.post('${process.env.REACT_APP_API_URL}/api/platforms/youtube/comment/like', { userId, commentId }); } catch (e) {}
   };
 
   if (loading) return <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>⏳ Loading comments...</p>;
@@ -377,7 +377,7 @@ function YTUpload({ userId }) {
       formData.append('title', form.title);
       formData.append('description', form.description);
       formData.append('tags', form.tags);
-      const { data } = await axios.post('http://localhost:5000/api/platforms/youtube/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await axios.post('${process.env.REACT_APP_API_URL}/api/platforms/youtube/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       alert(`✅ ${data.message}\n${data.videoUrl}`);
       setVideoFile(null);
       setForm({ title: '', description: '', tags: '' });
