@@ -1,0 +1,58 @@
+require('dotenv').config()
+
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
+const session = require('express-session');
+const { startYoutubeAutoReplyJob } = require('./jobs/youtubeAutoReply');
+const passport = require('./config/passport');
+require('dotenv').config();
+
+
+const app = express();
+
+app.use(helmet());
+app.use(morgan('dev'));
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true
+}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cookieParser());
+
+// Session (required for passport)
+app.use(session({
+  secret: process.env.JWT_SECRET || 'synapsocial_secret_fallback',
+  resave: true,
+  saveUninitialized: true,
+  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
+}));
+
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Routes
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/ai', require('./routes/ai'));
+app.use('/api/trends', require('./routes/trends'));
+app.use('/api/platforms', require('./routes/platforms'));
+app.use('/api/jobs', require('./routes/jobs'));
+app.use('/api/chats', require('./routes/chats'));
+app.use('/api/platforms/youtube', require('./routes/youtube'));
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'SynapSocial API is live 🚀' });
+});
+
+mongoose.connect(process.env.MONGO_URI).then(() => {
+  console.log('✅ MongoDB connected');
+  startYoutubeAutoReplyJob(); // ← add this
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
