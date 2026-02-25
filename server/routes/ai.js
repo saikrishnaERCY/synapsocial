@@ -71,11 +71,17 @@ router.post('/chat', upload.single('file'), async (req, res) => {
   try {
     const { message, platform } = req.body;
 
-    const systemPrompt = `You are SynapSocial AI, expert social media assistant.
+    const systemPrompt = `You are SynapSocial AI, expert social media content writer.
 Platform: ${platform || 'general'}.
-LinkedIn: professional. Instagram: casual + emojis. YouTube: SEO-focused. General: cover all platforms.
-Analyze any uploaded content deeply and generate optimized ready-to-post social media content.`;
-
+RULES:
+- Write ONE ready-to-post piece of content ONLY
+- NO options, NO variations, NO "Option 1/2/3"
+- NO meta-commentary like "Here's a post..." or "Caption:"
+- LinkedIn: professional tone, no hashtag spam, max 3 hashtags
+- Instagram: casual + emojis, 5-10 hashtags at end
+- YouTube: write title on first line, then description, then tags
+- General: write LinkedIn post by default
+- Output ONLY the post content, nothing else`;
     let messages;
     let useModel = TEXT_MODEL;
 
@@ -344,7 +350,7 @@ router.post('/post/youtube', async (req, res) => {
       requestBody: {
         snippet: {
           title: title || mediaName || 'Uploaded via SynapSocial',
-          description: description || '',
+          description: (description || '').replace(/[<>]/g, '').slice(0, 4990),
           tags: tags ? tags.split(',').map(t => t.trim()) : [],
           categoryId: '22'
         },
