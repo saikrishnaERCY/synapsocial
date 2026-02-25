@@ -3,6 +3,7 @@ import axios from 'axios';
 import Trends from './Trends';
 import Platforms from './Platforms';
 import Jobs from './Jobs';
+import Gmail from './Gmail';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://synapsocial-api.onrender.com';
 
@@ -306,6 +307,7 @@ export default function Dashboard() {
                         { id: 'jobs', icon: '💼', label: 'Job Scanner' },
                         { id: 'schedule', icon: '📅', label: 'Schedule' },
                         { id: 'settings', icon: '⚙️', label: 'Settings' },
+                        { id: 'gmail', icon: '📧', label: 'Gmail' },
                     ].map(item => (
                         <div key={item.id}
                             style={activeNav === item.id
@@ -490,6 +492,8 @@ export default function Dashboard() {
                 {activeNav === 'trends' && <Trends />}
                 {activeNav === 'platforms' && <Platforms />}
                 {activeNav === 'jobs' && <Jobs />}
+                {activeNav === 'gmail' && <Gmail />}
+
                 {activeNav === 'schedule' && <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}><h2>📅 Scheduler</h2><p style={{ color: '#888' }}>Coming Soon!</p></div>}
                 {activeNav === 'settings' && <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}><h2>⚙️ Settings</h2><p style={{ color: '#888' }}>Coming Soon!</p></div>}
             </div>

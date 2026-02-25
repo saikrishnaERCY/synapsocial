@@ -51,7 +51,7 @@ app.use('/api/platforms', require('./routes/platforms'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/chats', require('./routes/chats'));
 app.use('/api/platforms/youtube', require('./routes/youtube'));
-
+app.use('/api/gmail', require('./routes/gmail'));
 
 // Health check
 app.get('/api/health', (req, res) => {
