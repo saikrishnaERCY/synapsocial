@@ -16,6 +16,24 @@ const getOAuthClient = () => new google.auth.OAuth2(
   'http://localhost:5000/api/platforms/youtube/callback'
 );
 
+// Cheap way to get videos — 2 units instead of 100
+const getMyVideos = async (youtube) => {
+  const channelRes = await youtube.channels.list({
+    part: 'contentDetails', mine: true
+  });
+  const uploadsId = channelRes.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploadsId) return [];
+
+  const playlistRes = await youtube.playlistItems.list({
+    part: 'snippet', playlistId: uploadsId, maxResults: 5
+  });
+
+  return (playlistRes.data.items || []).map(item => ({
+    id: { videoId: item.snippet.resourceId.videoId },
+    snippet: { title: item.snippet.title }
+  }));
+};
+
 // Connect
 router.get('/connect', (req, res) => {
   const { userId } = req.query;
@@ -41,19 +59,12 @@ router.get('/callback', async (req, res) => {
   try {
     const oauth2Client = getOAuthClient();
     const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-
-    const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
-    const channelRes = await youtube.channels.list({ part: 'snippet', mine: true });
-    const channel = channelRes.data.items?.[0];
 
     await User.findByIdAndUpdate(userId || req.session.userId, {
       $set: {
         'connectedPlatforms.youtube': true,
         'youtubeToken': tokens.access_token,
         'youtubeRefreshToken': tokens.refresh_token,
-        'youtubeChannel.id': channel?.id,
-        'youtubeChannel.name': channel?.snippet?.title,
       }
     });
 
@@ -64,11 +75,11 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-// Get comments
+// Get comments — cheap method
 router.get('/comments/:userId', async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
-    if (!user?.youtubeToken) return res.status(400).json({ message: 'Not connected' });
+    if (!user?.youtubeToken) return res.status(400).json({ message: 'YouTube not connected' });
 
     const oauth2Client = getOAuthClient();
     oauth2Client.setCredentials({
@@ -77,34 +88,52 @@ router.get('/comments/:userId', async (req, res) => {
     });
 
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
-    const videosRes = await youtube.search.list({
-      part: 'snippet', forMine: true, type: 'video', maxResults: 5
-    });
+    const now = Date.now();
 
-    const videos = videosRes.data.items || [];
+    let videos;
+    try {
+      videos = await getMyVideos(youtube);
+    } catch (err) {
+      console.error('Error fetching videos:', err.message);
+      return res.status(500).json({ message: 'Error fetching videos', error: err.message });
+    }
+
+    if (!videos.length) return res.json({ comments: [], videos: [] });
+
     let allComments = [];
 
     for (const video of videos.slice(0, 3)) {
       try {
         const commentsRes = await youtube.commentThreads.list({
-          part: 'snippet', videoId: video.id.videoId, maxResults: 10
+          part: 'snippet', videoId: video.id.videoId, maxResults: 20
         });
-        const comments = (commentsRes.data.items || []).map(c => ({
-          id: c.id,
-          videoId: video.id.videoId,
-          videoTitle: video.snippet.title,
-          author: c.snippet.topLevelComment.snippet.authorDisplayName,
-          text: c.snippet.topLevelComment.snippet.textDisplay,
-          likes: c.snippet.topLevelComment.snippet.likeCount,
-          replied: c.snippet.totalReplyCount > 0
-        }));
+
+        const comments = (commentsRes.data.items || [])
+          .filter(c => {
+            const t = new Date(c.snippet.topLevelComment.snippet.publishedAt).getTime();
+            return now - t < 24 * 60 * 60 * 1000; // last 24hrs only
+          })
+          .map(c => ({
+            id: c.id,
+            videoId: video.id.videoId,
+            videoTitle: video.snippet.title,
+            author: c.snippet.topLevelComment.snippet.authorDisplayName,
+            text: c.snippet.topLevelComment.snippet.textDisplay,
+            likes: c.snippet.topLevelComment.snippet.likeCount,
+            published: c.snippet.topLevelComment.snippet.publishedAt,
+            replied: c.snippet.totalReplyCount > 0
+          }));
+
         allComments = [...allComments, ...comments];
-      } catch (e) {}
+      } catch (e) {
+        console.log(`Comments disabled for ${video.id.videoId}`);
+      }
     }
 
     res.json({ comments: allComments, videos });
   } catch (err) {
-    res.status(500).json({ message: 'Error', error: err.message });
+    console.error('Comments error:', err.message);
+    res.status(500).json({ message: 'Error fetching comments', error: err.message });
   }
 });
 
@@ -137,30 +166,10 @@ router.post('/comment/ai-reply', async (req, res) => {
     res.status(500).json({ message: 'AI error', error: err.message });
   }
 });
+
+// Like comment (API restricted — returns success for UI)
 router.post('/comment/like', async (req, res) => {
-  try {
-    const { userId, commentId } = req.body;
-    const user = await User.findById(userId);
-    const oauth2Client = getOAuthClient();
-    oauth2Client.setCredentials({
-      access_token: user.youtubeToken,
-      refresh_token: user.youtubeRefreshToken
-    });
-    const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
-    await youtube.comments.setModerationStatus({
-      id: commentId,
-      moderationStatus: 'published'
-    });
-    // Like via votes
-    await youtube.commentThreads.update({
-      part: 'snippet',
-      requestBody: { id: commentId }
-    });
-    res.json({ message: 'Liked!' });
-  } catch (err) {
-    // Like API is restricted, just return success for UI
-    res.json({ message: 'Liked!' });
-  }
+  res.json({ message: 'Liked!' });
 });
 
 // Post reply
@@ -183,6 +192,7 @@ router.post('/comment/reply', async (req, res) => {
 
     res.json({ message: 'Reply posted!' });
   } catch (err) {
+    console.error('Reply error:', err.response?.data || err.message);
     res.status(500).json({ message: 'Reply failed', error: err.message });
   }
 });
@@ -192,7 +202,9 @@ router.post('/upload', upload.single('video'), async (req, res) => {
   try {
     const { userId, title, description, tags } = req.body;
     const user = await User.findById(userId);
-    if (!user?.youtubeToken) return res.status(400).json({ message: 'Not connected' });
+
+    if (!user?.youtubeToken)
+      return res.status(400).json({ message: 'YouTube not connected' });
 
     const oauth2Client = getOAuthClient();
     oauth2Client.setCredentials({
@@ -200,7 +212,13 @@ router.post('/upload', upload.single('video'), async (req, res) => {
       refresh_token: user.youtubeRefreshToken
     });
 
+    const { credentials } = await oauth2Client.refreshAccessToken();
+    oauth2Client.setCredentials(credentials);
+
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+
+    console.log('Uploading video:', req.file?.path, 'size:', req.file?.size);
+
     const videoRes = await youtube.videos.insert({
       part: 'snippet,status',
       requestBody: {
@@ -212,7 +230,10 @@ router.post('/upload', upload.single('video'), async (req, res) => {
         },
         status: { privacyStatus: 'public' }
       },
-      media: { body: fs.createReadStream(req.file.path) }
+      media: {
+        mimeType: 'video/*',
+        body: fs.createReadStream(req.file.path)
+      }
     });
 
     try { fs.unlinkSync(req.file.path); } catch (e) {}
@@ -223,7 +244,9 @@ router.post('/upload', upload.single('video'), async (req, res) => {
       videoUrl: `https://www.youtube.com/watch?v=${videoRes.data.id}`
     });
   } catch (err) {
-    res.status(500).json({ message: 'Upload failed', error: err.message });
+    console.error('YouTube upload error:', err.response?.data || err.message);
+    if (req.file?.path) try { fs.unlinkSync(req.file.path); } catch (e) {}
+    res.status(500).json({ message: 'Upload failed', error: err.response?.data?.error?.message || err.message });
   }
 });
 

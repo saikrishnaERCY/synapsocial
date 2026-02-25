@@ -53,6 +53,8 @@ mongoose.connect(process.env.MONGO_URI).then(() => {
   console.log('✅ MongoDB connected');
   startYoutubeAutoReplyJob(); // ← add this
 });
+console.log("OPENROUTER KEY:", process.env.OPENROUTER_API_KEY);
+console.log("SERP KEY:", process.env.SERP_API_KEY);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

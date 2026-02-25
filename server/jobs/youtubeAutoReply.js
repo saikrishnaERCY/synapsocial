@@ -9,6 +9,24 @@ const getOAuthClient = () => new google.auth.OAuth2(
   'http://localhost:5000/api/platforms/youtube/callback'
 );
 
+// Cheap: 2 units instead of 100
+const getMyVideos = async (youtube) => {
+  const channelRes = await youtube.channels.list({
+    part: 'contentDetails', mine: true
+  });
+  const uploadsId = channelRes.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploadsId) return [];
+
+  const playlistRes = await youtube.playlistItems.list({
+    part: 'snippet', playlistId: uploadsId, maxResults: 5
+  });
+
+  return (playlistRes.data.items || []).map(item => ({
+    id: { videoId: item.snippet.resourceId.videoId },
+    snippet: { title: item.snippet.title }
+  }));
+};
+
 const autoReplyForUser = async (user) => {
   try {
     const oauth2Client = getOAuthClient();
@@ -18,22 +36,19 @@ const autoReplyForUser = async (user) => {
     });
 
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
-
-    // Get recent videos
-    const videosRes = await youtube.search.list({
-      part: 'snippet', forMine: true, type: 'video', maxResults: 5
-    });
-
     const now = Date.now();
 
-    for (const video of videosRes.data.items || []) {
+    const videos = await getMyVideos(youtube);
+    if (!videos.length) return;
+
+    for (const video of videos) {
       let commentsRes;
       try {
         commentsRes = await youtube.commentThreads.list({
           part: 'snippet', videoId: video.id.videoId, maxResults: 20
         });
       } catch (e) {
-        console.log(`Skipping video ${video.id.videoId} - comments may be disabled`);
+        console.log(`Comments disabled for ${video.id.videoId}`);
         continue;
       }
 
@@ -48,7 +63,6 @@ const autoReplyForUser = async (user) => {
         if (now - commentTime > 24 * 60 * 60 * 1000) continue;
 
         try {
-          // Generate AI reply
           const aiRes = await axios.post(
             'https://openrouter.ai/api/v1/chat/completions',
             {
@@ -71,20 +85,14 @@ const autoReplyForUser = async (user) => {
 
           const reply = aiRes.data.choices[0].message.content.trim();
 
-          // Post reply
           await youtube.comments.insert({
             part: 'snippet',
             requestBody: {
-              snippet: {
-                parentId: thread.id,
-                textOriginal: reply
-              }
+              snippet: { parentId: thread.id, textOriginal: reply }
             }
           });
 
           console.log(`✅ Auto-replied to ${comment.authorDisplayName}: "${reply}"`);
-
-          // Delay to avoid rate limits
           await new Promise(r => setTimeout(r, 1500));
 
         } catch (replyErr) {
@@ -98,8 +106,7 @@ const autoReplyForUser = async (user) => {
 };
 
 const startYoutubeAutoReplyJob = () => {
-  // Runs every 1 minute
-  cron.schedule('* * * * *', async () => {
+  cron.schedule('*/30 * * * *', async () => {
     console.log('🤖 Running YouTube auto-reply job...');
     try {
       const users = await User.find({
@@ -108,6 +115,7 @@ const startYoutubeAutoReplyJob = () => {
         'youtubeToken': { $exists: true, $ne: null }
       });
 
+      if (!users.length) return;
       console.log(`Found ${users.length} user(s) with auto-reply enabled`);
 
       for (const user of users) {
@@ -118,7 +126,7 @@ const startYoutubeAutoReplyJob = () => {
     }
   });
 
-  console.log('✅ YouTube auto-reply cron job started (runs every 1 min)');
+  console.log('✅ YouTube auto-reply cron job started (every 30 min, quota-safe)');
 };
 
 module.exports = { startYoutubeAutoReplyJob };
