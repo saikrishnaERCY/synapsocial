@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+const API_URL = process.env.REACT_APP_API_URL || 'https://synapsocial-api.onrender.com';
 
 const niches = ['social media', 'tech', 'finance', 'fitness', 'startup', 'AI'];
 
@@ -8,22 +9,24 @@ export default function Trends() {
   const [ideas, setIdeas] = useState([]);
   const [niche, setNiche] = useState('social media');
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const r = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', r);
+    return () => window.removeEventListener('resize', r);
+  }, []);
 
   const fetchTrends = async () => {
-    setLoading(true);
-    setTrends([]);
-    setIdeas([]);
+    setLoading(true); setTrends([]); setIdeas([]);
     try {
-      const { data } = await axios.get(`${process.env.REACT_APP_API_URL}/api/trends?niche=${niche}`);
-      setTrends(data.trending || []);
-      setIdeas(data.ideas || []);
-    } catch {
-      alert('Error fetching trends');
-    }
+      const { data } = await axios.get(`${API_URL}/api/trends?niche=${niche}`);
+      setTrends(data.trending || []); setIdeas(data.ideas || []);
+    } catch { alert('Error fetching trends'); }
     setLoading(false);
   };
 
- useEffect(() => { fetchTrends(); }, [niche]);
+  useEffect(() => { fetchTrends(); }, [niche]);
 
   const platformColor = (p) => {
     if (p === 'LinkedIn') return '#0077b5';
@@ -33,61 +36,54 @@ export default function Trends() {
   };
 
   return (
-    <div style={s.container}>
-      <div style={s.header}>
-        <h2 style={s.title}>📈 Trend Intelligence</h2>
-        <p style={s.sub}>Real-time trending topics + AI-generated content ideas</p>
-
-        <div style={s.nicheRow}>
+    <div style={{ flex: 1, padding: isMobile ? '1rem' : '1.5rem', overflowY: 'auto', color: '#fff' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <h2 style={{ margin: '0 0 0.3rem', fontSize: isMobile ? '1.2rem' : '1.4rem' }}>📈 Trend Intelligence</h2>
+        <p style={{ color: '#888', margin: '0 0 1rem', fontSize: '0.9rem' }}>Real-time trending topics + AI-generated content ideas</p>
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           {niches.map(n => (
-            <button key={n} style={niche === n ? s.nicheActive : s.nicheBtn}
+            <button key={n} style={{ padding: '0.4rem 0.8rem', background: niche === n ? '#7c3aed' : 'transparent', color: niche === n ? '#fff' : '#888', border: '1px solid #2a2a3a', borderRadius: '20px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: niche === n ? 600 : 400 }}
               onClick={() => setNiche(n)}>{n}</button>
           ))}
         </div>
-
-        <button style={s.fetchBtn} onClick={fetchTrends} disabled={loading}>
-          {loading ? '⏳ Fetching...' : '🔄 Refresh Trends'}
-        </button>
+        <button style={{ padding: '0.6rem 1.5rem', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}
+          onClick={fetchTrends} disabled={loading}>{loading ? '⏳ Fetching...' : '🔄 Refresh Trends'}</button>
       </div>
 
       {loading && (
-        <div style={s.loadingBox}>
-          <p style={s.loadingText}>🧠 Scanning trends + generating ideas...</p>
+        <div style={{ textAlign: 'center', padding: '3rem' }}>
+          <p style={{ color: '#7c3aed', fontSize: '1rem' }}>🧠 Scanning trends + generating ideas...</p>
         </div>
       )}
 
       {!loading && trends.length > 0 && (
-        <div style={s.grid}>
-          {/* Trending Topics */}
-          <div style={s.card}>
-            <h3 style={s.cardTitle}>🔥 Trending Now (India)</h3>
-            <div style={s.trendList}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.5rem' }}>
+          <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem' }}>
+            <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: '#fff' }}>🔥 Trending Now (India)</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               {trends.map((t, i) => (
-                <div key={i} style={s.trendItem}>
-                  <span style={s.trendRank}>#{i + 1}</span>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.6rem', background: '#1e1e2e', borderRadius: '8px' }}>
+                  <span style={{ color: '#7c3aed', fontWeight: 700, fontSize: '0.85rem', minWidth: '24px' }}>#{i + 1}</span>
                   <div>
-                    <p style={s.trendName}>{t.title}</p>
-                    <p style={s.trendTraffic}>{t.traffic} searches</p>
+                    <p style={{ margin: 0, fontSize: '0.9rem', color: '#fff' }}>{t.title}</p>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#888' }}>{t.traffic} searches</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* AI Content Ideas */}
-          <div style={s.card}>
-            <h3 style={s.cardTitle}>💡 AI Content Ideas for <span style={{ color: '#7c3aed' }}>{niche}</span></h3>
-            <div style={s.ideaList}>
+          <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem' }}>
+            <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', color: '#fff' }}>💡 AI Content Ideas for <span style={{ color: '#7c3aed' }}>{niche}</span></h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               {ideas.map((idea, i) => (
-                <div key={i} style={s.ideaCard}>
-                  <div style={s.ideaTop}>
-                    <span style={s.ideaTopic}>📌 {idea.topic}</span>
-                    <span style={{ ...s.platformBadge, background: platformColor(idea.platform) }}>
-                      {idea.platform}
-                    </span>
+                <div key={i} style={{ padding: '0.8rem', background: '#1e1e2e', borderRadius: '10px', border: '1px solid #2a2a3a' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>📌 {idea.topic}</span>
+                    <span style={{ padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem', color: '#fff', fontWeight: 600, background: platformColor(idea.platform) }}>{idea.platform}</span>
                   </div>
-                  <p style={s.ideaHook}>🎣 Hook: <em>{idea.hook}</em></p>
-                  <p style={s.ideaAngle}>💡 Angle: {idea.angle}</p>
+                  <p style={{ margin: '0 0 0.3rem', fontSize: '0.82rem', color: '#aaa' }}>🎣 Hook: <em>{idea.hook}</em></p>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#888' }}>💡 Angle: {idea.angle}</p>
                 </div>
               ))}
             </div>
@@ -97,31 +93,3 @@ export default function Trends() {
     </div>
   );
 }
-
-const s = {
-  container: { flex: 1, padding: '1.5rem', overflowY: 'auto', color: '#fff' },
-  header: { marginBottom: '1.5rem' },
-  title: { margin: '0 0 0.3rem', fontSize: '1.4rem' },
-  sub: { color: '#888', margin: '0 0 1rem', fontSize: '0.9rem' },
-  nicheRow: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' },
-  nicheBtn: { padding: '0.4rem 1rem', background: 'transparent', color: '#888', border: '1px solid #2a2a3a', borderRadius: '20px', cursor: 'pointer', fontSize: '0.85rem' },
-  nicheActive: { padding: '0.4rem 1rem', background: '#7c3aed', color: '#fff', border: '1px solid #7c3aed', borderRadius: '20px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 },
-  fetchBtn: { padding: '0.6rem 1.5rem', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 },
-  loadingBox: { textAlign: 'center', padding: '3rem' },
-  loadingText: { color: '#7c3aed', fontSize: '1rem' },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' },
-  card: { background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem' },
-  cardTitle: { margin: '0 0 1rem', fontSize: '1rem', color: '#fff' },
-  trendList: { display: 'flex', flexDirection: 'column', gap: '0.6rem' },
-  trendItem: { display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.6rem', background: '#1e1e2e', borderRadius: '8px' },
-  trendRank: { color: '#7c3aed', fontWeight: 700, fontSize: '0.85rem', minWidth: '24px' },
-  trendName: { margin: 0, fontSize: '0.9rem', color: '#fff' },
-  trendTraffic: { margin: 0, fontSize: '0.75rem', color: '#888' },
-  ideaList: { display: 'flex', flexDirection: 'column', gap: '0.8rem' },
-  ideaCard: { padding: '0.8rem', background: '#1e1e2e', borderRadius: '10px', border: '1px solid #2a2a3a' },
-  ideaTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' },
-  ideaTopic: { fontSize: '0.85rem', fontWeight: 600, color: '#fff' },
-  platformBadge: { padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem', color: '#fff', fontWeight: 600 },
-  ideaHook: { margin: '0 0 0.3rem', fontSize: '0.82rem', color: '#aaa' },
-  ideaAngle: { margin: 0, fontSize: '0.82rem', color: '#888' }
-};
