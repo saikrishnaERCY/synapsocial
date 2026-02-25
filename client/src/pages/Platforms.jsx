@@ -33,10 +33,10 @@ const platformConfig = [
   },
   {
     id: 'gmail', name: 'Gmail', icon: '📧', color: '#ea4335',
-    features: ['Read Inbox', 'AI Reply', 'Send Email'],
+    features: ['Read Inbox', 'AI Reply', 'Send Email', 'Auto-Reply'],
     authUrl: `${API_URL}/api/gmail/connect`,
     permissions: [
-      { key: 'gmailAutoReply', label: '🤖 Auto-Reply', desc: 'AI auto-replies to emails' },
+      { key: 'gmailAutoReply', label: '🤖 Auto-Reply', desc: 'AI auto-replies to selected contacts' },
     ]
   },
 ];
@@ -72,9 +72,11 @@ export default function Platforms() {
   useEffect(() => {
     fetchStatus();
     const params = new URLSearchParams(window.location.search);
-    if (params.get('connected')) {
-      setConnected(prev => ({ ...prev, [params.get('connected')]: true }));
+    const conn = params.get('connected');
+    if (conn) {
+      setConnected(prev => ({ ...prev, [conn]: true }));
       window.history.replaceState({}, '', '/dashboard');
+      if (conn === 'gmail') setGmailModal('inbox');
     }
   }, []);
 
@@ -114,12 +116,18 @@ export default function Platforms() {
   };
 
   const disconnectPlatform = async (platformId) => {
-    if (platformId === 'instagram') {
-      await axios.post(`${API_URL}/api/instagram/disconnect`, { userId: user.id });
-    } else {
-      await axios.post(`${API_URL}/api/platforms/disconnect`, { userId: user.id, platform: platformId });
-    }
-    setConnected(prev => ({ ...prev, [platformId]: false }));
+    if (!window.confirm(`Disconnect ${platformId}?`)) return;
+    try {
+      if (platformId === 'instagram') {
+        await axios.post(`${API_URL}/api/instagram/disconnect`, { userId: user.id });
+      } else if (platformId === 'gmail') {
+        await axios.post(`${API_URL}/api/gmail/disconnect`, { userId: user.id });
+      } else {
+        await axios.post(`${API_URL}/api/platforms/disconnect`, { userId: user.id, platform: platformId });
+      }
+      setConnected(prev => ({ ...prev, [platformId]: false }));
+      setSaveMsg(`✅ ${platformId} disconnected`); setTimeout(() => setSaveMsg(''), 2000);
+    } catch (err) { alert('❌ Failed to disconnect'); }
   };
 
   const togglePermission = async (key) => {
@@ -128,7 +136,7 @@ export default function Platforms() {
     try {
       await axios.post(`${API_URL}/api/platforms/permissions`, { userId: user.id, permissions: updated });
       setSaveMsg('✅ Saved!'); setTimeout(() => setSaveMsg(''), 2000);
-    } catch { setSaveMsg('❌ Failed'); }
+    } catch { setSaveMsg('❌ Failed'); setTimeout(() => setSaveMsg(''), 2000); }
   };
 
   const toggleSettings = (platformId) => {
@@ -234,7 +242,6 @@ export default function Platforms() {
                     )}
                   </div>
                 )}
-
                 <button style={{ width: '100%', padding: '0.6rem', background: 'transparent', color: '#ff4444', border: '1px solid #ff4444', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
                   onClick={() => disconnectPlatform(platform.id)}>Disconnect {platform.name}</button>
               </>
@@ -246,75 +253,273 @@ export default function Platforms() {
         ))}
       </div>
 
-      {/* Instagram connect modal */}
+      {/* Instagram modals */}
       {igModal === 'connect' && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000000aa', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ background: '#13131a', border: '1px solid #e1306c44', borderRadius: '16px', padding: '1.5rem', width: '100%', maxWidth: '480px', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, color: '#fff' }}>📸 Connect Instagram</h3>
-              <button onClick={() => setIgModal(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.3rem' }}>✕</button>
-            </div>
-            <p style={{ color: '#888', fontSize: '0.85rem', margin: '0 0 1rem' }}>Paste your Instagram Business Access Token from Meta Business Suite</p>
-            <textarea style={{ width: '100%', padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '8px', color: '#fff', fontSize: '0.82rem', outline: 'none', resize: 'vertical', minHeight: '80px', boxSizing: 'border-box', fontFamily: 'monospace' }}
-              placeholder="Paste access token here..." value={igTokenInput} onChange={e => setIgTokenInput(e.target.value)} />
-            <button onClick={connectInstagram} style={{ width: '100%', padding: '0.8rem', background: '#e1306c', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, marginTop: '0.8rem' }}>🔗 Connect</button>
-          </div>
-        </div>
+        <Modal onClose={() => setIgModal(null)} title="📸 Connect Instagram">
+          <p style={{ color: '#888', fontSize: '0.85rem', margin: '0 0 1rem' }}>Paste your Instagram Business Access Token from Meta Business Suite</p>
+          <textarea style={modalInp} placeholder="Paste access token here..." value={igTokenInput} onChange={e => setIgTokenInput(e.target.value)} />
+          <button onClick={connectInstagram} style={primaryBtn('#e1306c')}>🔗 Connect</button>
+        </Modal>
       )}
-
-      {/* Instagram post modal */}
-      {igModal === 'post' && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000000aa', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setIgModal(null)}>
-          <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem', width: '100%', maxWidth: '500px', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, color: '#fff' }}>📸 Post to Instagram</h3>
-              <button onClick={() => setIgModal(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.3rem' }}>✕</button>
-            </div>
-            <IGPost userId={user.id} />
-          </div>
-        </div>
-      )}
-
-      {/* Instagram comments modal */}
-      {igModal === 'comments' && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000000aa', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setIgModal(null)}>
-          <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem', width: '100%', maxWidth: '700px', maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, color: '#fff' }}>💬 Instagram Comments</h3>
-              <button onClick={() => setIgModal(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.3rem' }}>✕</button>
-            </div>
-            <IGComments userId={user.id} />
-          </div>
-        </div>
-      )}
+      {igModal === 'post' && <Modal onClose={() => setIgModal(null)} title="📸 Post to Instagram"><IGPost userId={user.id} /></Modal>}
+      {igModal === 'comments' && <Modal onClose={() => setIgModal(null)} title="💬 Instagram Comments"><IGComments userId={user.id} /></Modal>}
 
       {/* YouTube modals */}
       {ytModal && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000000aa', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setYtModal(null)}>
-          <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem', width: '100%', maxWidth: '700px', maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, color: '#fff' }}>{ytModal === 'comments' ? '💬 YouTube Comments' : '⬆️ Upload Video'}</h3>
-              <button onClick={() => setYtModal(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.3rem' }}>✕</button>
-            </div>
-            {ytModal === 'comments' && <YTComments userId={user.id} />}
-            {ytModal === 'upload' && <YTUpload userId={user.id} />}
-          </div>
-        </div>
+        <Modal onClose={() => setYtModal(null)} title={ytModal === 'comments' ? '💬 YouTube Comments' : '⬆️ Upload Video'}>
+          {ytModal === 'comments' && <YTComments userId={user.id} />}
+          {ytModal === 'upload' && <YTUpload userId={user.id} />}
+        </Modal>
       )}
 
       {/* Gmail modals */}
-      {gmailModal && (
-        <div style={{ position: 'fixed', inset: 0, background: '#000000aa', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setGmailModal(null)}>
-          <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, color: '#fff' }}>{gmailModal === 'inbox' ? '📧 Gmail Inbox' : '✏️ Compose Email'}</h3>
-              <button onClick={() => setGmailModal(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.3rem' }}>✕</button>
+      {gmailModal === 'inbox' && <Modal onClose={() => setGmailModal(null)} title="📧 Gmail Inbox" wide><GmailInbox userId={user.id} onCompose={() => setGmailModal('compose')} /></Modal>}
+      {gmailModal === 'compose' && <Modal onClose={() => setGmailModal(null)} title="✏️ Compose Email"><GmailCompose userId={user.id} onClose={() => setGmailModal(null)} /></Modal>}
+    </div>
+  );
+}
+
+// ─── Shared Modal ─────────────────────────────────────────────
+function Modal({ onClose, title, children, wide }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: '#000000aa', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={onClose}>
+      <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem', width: '100%', maxWidth: wide ? '820px' : '520px', maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ margin: 0, color: '#fff' }}>{title}</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.3rem', lineHeight: 1 }}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+const modalInp = { padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '8px', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%', boxSizing: 'border-box', marginBottom: '0.8rem', minHeight: '80px', resize: 'vertical', fontFamily: 'sans-serif' };
+const primaryBtn = (color) => ({ width: '100%', padding: '0.8rem', background: color, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 });
+const inpStyle = { padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '8px', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%', boxSizing: 'border-box' };
+
+// ─── Gmail Inbox ──────────────────────────────────────────────
+function GmailInbox({ userId, onCompose }) {
+  const [emails, setEmails] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [emailBody, setEmailBody] = useState(null);
+  const [loadingBody, setLoadingBody] = useState(false);
+  // AI Reply popup state
+  const [aiReplyPopup, setAiReplyPopup] = useState(null); // { reply, from, fromEmail, subject, threadId, emailId }
+  const [loadingReply, setLoadingReply] = useState(false);
+  const [autoReplyChecked, setAutoReplyChecked] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [autoContacts, setAutoContacts] = useState([]);
+
+  useEffect(() => {
+    loadEmails();
+    loadAutoContacts();
+  }, []);
+
+  const loadEmails = () => {
+    setLoading(true);
+    axios.get(`${API_URL}/api/gmail/inbox/${userId}`)
+      .then(({ data }) => setEmails(data.emails || []))
+      .catch(console.error).finally(() => setLoading(false));
+  };
+
+  const loadAutoContacts = () => {
+    axios.get(`${API_URL}/api/gmail/auto-reply-contacts/${userId}`)
+      .then(({ data }) => setAutoContacts(data.contacts || []))
+      .catch(console.error);
+  };
+
+  const openEmail = async (email) => {
+    setSelected(email); setEmailBody(null); setLoadingBody(true);
+    try {
+      const { data } = await axios.get(`${API_URL}/api/gmail/email/${userId}/${email.id}`);
+      setEmailBody(data);
+      setEmails(p => p.map(e => e.id === email.id ? { ...e, isUnread: false } : e));
+    } catch (err) { console.error(err); }
+    setLoadingBody(false);
+  };
+
+  const generateAiReply = async () => {
+    if (!emailBody) return;
+    setLoadingReply(true);
+    try {
+      const { data } = await axios.post(`${API_URL}/api/gmail/ai-reply`, {
+        subject: emailBody.subject, body: emailBody.body, from: emailBody.from
+      });
+      const fromEmail = emailBody.from.match(/<(.+)>/)?.[1] || emailBody.from;
+      const isAutoContact = autoContacts.some(c => fromEmail.includes(c) || c.includes(fromEmail));
+      setAiReplyPopup({
+        reply: data.reply,
+        from: emailBody.from,
+        fromEmail,
+        subject: emailBody.subject,
+        threadId: emailBody.threadId,
+        emailId: selected.id,
+        editedReply: data.reply,
+      });
+      setAutoReplyChecked(isAutoContact);
+    } catch { alert('❌ AI error'); }
+    setLoadingReply(false);
+  };
+
+  const sendAiReply = async () => {
+    if (!aiReplyPopup) return;
+    setSending(true);
+    try {
+      // If checkbox checked, save to auto-reply contacts
+      if (autoReplyChecked) {
+        await axios.post(`${API_URL}/api/gmail/auto-reply/add`, { userId, fromEmail: aiReplyPopup.fromEmail });
+        setAutoContacts(p => [...new Set([...p, aiReplyPopup.fromEmail])]);
+      } else {
+        // Remove from auto-reply if unchecked
+        await axios.post(`${API_URL}/api/gmail/auto-reply/remove`, { userId, fromEmail: aiReplyPopup.fromEmail });
+        setAutoContacts(p => p.filter(c => c !== aiReplyPopup.fromEmail));
+      }
+
+      await axios.post(`${API_URL}/api/gmail/send`, {
+        userId,
+        to: aiReplyPopup.fromEmail,
+        subject: `Re: ${aiReplyPopup.subject}`,
+        body: aiReplyPopup.editedReply,
+        threadId: aiReplyPopup.threadId
+      });
+
+      setEmails(p => p.map(e => e.id === aiReplyPopup.emailId ? { ...e, replied: true } : e));
+      setAiReplyPopup(null); setSelected(null); setEmailBody(null);
+      alert('✅ Reply sent!');
+    } catch { alert('❌ Send failed'); }
+    setSending(false);
+  };
+
+  const fmt = (d) => { try { return new Date(d).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; } };
+  const name = (from) => { const m = from?.match(/^(.+?)\s*</); return m ? m[1].replace(/"/g, '') : from?.split('@')[0] || from; };
+
+  if (loading) return <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>⏳ Loading inbox...</p>;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <p style={{ margin: 0, fontSize: '0.82rem', color: '#888' }}>{emails.length} emails · {autoContacts.length} auto-reply contacts</p>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={loadEmails} style={{ padding: '0.4rem 0.8rem', background: '#1e1e2e', color: '#888', border: '1px solid #2a2a3a', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}>🔄</button>
+          {onCompose && <button onClick={onCompose} style={{ padding: '0.4rem 0.8rem', background: '#ea4335', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>✏️ Compose</button>}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: selected && window.innerWidth > 600 ? '1fr 1.2fr' : '1fr', gap: '0.8rem' }}>
+        {/* Email list */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '55vh', overflowY: 'auto' }}>
+          {emails.length === 0 && <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>No emails found</p>}
+          {emails.map(email => (
+            <div key={email.id} onClick={() => openEmail(email)}
+              style={{ background: selected?.id === email.id ? '#1e1e2e' : '#0d0d14', border: `1px solid ${selected?.id === email.id ? '#ea433544' : '#2a2a3a'}`, borderRadius: '8px', padding: '0.7rem', cursor: 'pointer', transition: 'all 0.15s' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
+                <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: email.isUnread ? 700 : 400, color: email.isUnread ? '#fff' : '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  {email.isUnread && <span style={{ width: '6px', height: '6px', background: '#ea4335', borderRadius: '50%', display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />}
+                  {name(email.from)}
+                </p>
+                <span style={{ fontSize: '0.62rem', color: '#555', flexShrink: 0, marginLeft: '0.4rem' }}>{fmt(email.date)}</span>
+              </div>
+              <p style={{ margin: '0 0 0.1rem', fontSize: '0.78rem', color: email.isUnread ? '#ddd' : '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.subject}</p>
+              <p style={{ margin: 0, fontSize: '0.7rem', color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.snippet}</p>
             </div>
-            {gmailModal === 'inbox' && <GmailInbox userId={user.id} onCompose={() => setGmailModal('compose')} />}
-            {gmailModal === 'compose' && <GmailCompose userId={user.id} onClose={() => setGmailModal(null)} />}
+          ))}
+        </div>
+
+        {/* Email detail */}
+        {selected && (
+          <div style={{ background: '#0d0d14', border: '1px solid #2a2a3a', borderRadius: '10px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '55vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: '0 0 0.2rem', fontWeight: 700, color: '#fff', fontSize: '0.9rem' }}>{emailBody?.subject || selected.subject}</p>
+                <p style={{ margin: 0, fontSize: '0.72rem', color: '#888' }}>{emailBody?.from || selected.from}</p>
+              </div>
+              <button onClick={() => { setSelected(null); setEmailBody(null); }} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '1rem' }}>✕</button>
+            </div>
+            {loadingBody && <p style={{ color: '#888', fontSize: '0.82rem' }}>⏳ Loading...</p>}
+            {emailBody && !loadingBody && (
+              <div style={{ background: '#13131a', borderRadius: '8px', padding: '0.8rem', fontSize: '0.82rem', color: '#ccc', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {emailBody.body || selected.snippet}
+              </div>
+            )}
+            <button onClick={generateAiReply} disabled={loadingReply || !emailBody}
+              style={{ padding: '0.5rem 1rem', background: '#7c3aed22', color: '#a855f7', border: '1px solid #7c3aed44', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem', alignSelf: 'flex-start' }}>
+              {loadingReply ? '⏳ Generating...' : '🧠 AI Reply'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── AI Reply Popup ── */}
+      {aiReplyPopup && (
+        <div style={{ position: 'fixed', inset: 0, background: '#000000cc', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ background: '#13131a', border: '1px solid #7c3aed44', borderRadius: '20px', padding: '1.5rem', maxWidth: '500px', width: '100%', boxSizing: 'border-box', boxShadow: '0 0 40px #7c3aed22' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '1rem' }}>🧠 AI Reply</h3>
+              <button onClick={() => setAiReplyPopup(null)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+            <p style={{ margin: '0 0 0.8rem', fontSize: '0.78rem', color: '#888' }}>Replying to: <span style={{ color: '#ccc' }}>{aiReplyPopup.from}</span></p>
+
+            {/* Editable reply */}
+            <textarea
+              style={{ width: '100%', padding: '0.9rem', background: '#1e1e2e', border: '1px solid #7c3aed44', borderRadius: '10px', color: '#fff', fontSize: '0.85rem', outline: 'none', resize: 'vertical', minHeight: '120px', boxSizing: 'border-box', fontFamily: 'sans-serif', lineHeight: 1.6, marginBottom: '1rem' }}
+              value={aiReplyPopup.editedReply}
+              onChange={e => setAiReplyPopup(p => ({ ...p, editedReply: e.target.value }))}
+            />
+
+            {/* Auto-reply checkbox */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem', padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '10px', marginBottom: '1rem', cursor: 'pointer' }}
+              onClick={() => setAutoReplyChecked(p => !p)}>
+              <div style={{ width: '18px', height: '18px', borderRadius: '4px', border: `2px solid ${autoReplyChecked ? '#7c3aed' : '#444'}`, background: autoReplyChecked ? '#7c3aed' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1px' }}>
+                {autoReplyChecked && <span style={{ color: '#fff', fontSize: '0.7rem', fontWeight: 900 }}>✓</span>}
+              </div>
+              <div>
+                <p style={{ margin: '0 0 0.2rem', fontSize: '0.83rem', fontWeight: 600, color: '#fff' }}>🤖 Automate this conversation</p>
+                <p style={{ margin: 0, fontSize: '0.72rem', color: '#888', lineHeight: 1.5 }}>
+                  Future emails from <span style={{ color: '#a855f7' }}>{aiReplyPopup.fromEmail}</span> will be automatically replied to by AI without asking you.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.8rem' }}>
+              <button onClick={sendAiReply} disabled={sending}
+                style={{ flex: 1, padding: '0.8rem', background: sending ? '#333' : '#ea4335', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem' }}>
+                {sending ? '⏳ Sending...' : '📤 Send Reply'}
+              </button>
+              <button onClick={() => setAiReplyPopup(null)}
+                style={{ padding: '0.8rem 1.2rem', background: 'transparent', color: '#888', border: '1px solid #2a2a3a', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>
+                Skip
+              </button>
+            </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Gmail Compose ────────────────────────────────────────────
+function GmailCompose({ userId, onClose }) {
+  const [form, setForm] = useState({ to: '', subject: '', body: '' });
+  const [sending, setSending] = useState(false);
+  const send = async () => {
+    if (!form.to || !form.subject || !form.body) return alert('Fill all fields!');
+    setSending(true);
+    try {
+      await axios.post(`${API_URL}/api/gmail/send`, { userId, ...form });
+      alert('✅ Email sent!'); onClose();
+    } catch { alert('❌ Send failed'); }
+    setSending(false);
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+      <input style={inpStyle} placeholder="To (email address)" value={form.to} onChange={e => setForm(p => ({ ...p, to: e.target.value }))} />
+      <input style={inpStyle} placeholder="Subject" value={form.subject} onChange={e => setForm(p => ({ ...p, subject: e.target.value }))} />
+      <textarea style={{ ...inpStyle, minHeight: '150px', resize: 'vertical', fontFamily: 'sans-serif' }} placeholder="Email body..." value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} />
+      <button onClick={send} disabled={sending} style={primaryBtn(sending ? '#333' : '#ea4335')}>
+        {sending ? '⏳ Sending...' : '📤 Send Email'}
+      </button>
     </div>
   );
 }
@@ -333,13 +538,12 @@ function IGPost({ userId }) {
     } catch (err) { alert('❌ ' + (err.response?.data?.message || 'Post failed')); }
     setPosting(false);
   };
-  const inp = { padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '8px', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%', boxSizing: 'border-box' };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
       <p style={{ margin: 0, fontSize: '0.8rem', color: '#888' }}>⚠️ Requires a public image URL</p>
-      <input style={inp} placeholder="Public Image URL (https://...)" value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
-      <textarea style={{ ...inp, minHeight: '80px', resize: 'vertical', fontFamily: 'sans-serif' }} placeholder="Caption + hashtags" value={caption} onChange={e => setCaption(e.target.value)} />
-      <button onClick={post} disabled={posting || !imageUrl} style={{ padding: '0.9rem', background: posting || !imageUrl ? '#333' : '#e1306c', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
+      <input style={inpStyle} placeholder="Public Image URL (https://...)" value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
+      <textarea style={{ ...inpStyle, minHeight: '80px', resize: 'vertical', fontFamily: 'sans-serif' }} placeholder="Caption + hashtags" value={caption} onChange={e => setCaption(e.target.value)} />
+      <button onClick={post} disabled={posting || !imageUrl} style={primaryBtn(posting || !imageUrl ? '#333' : '#e1306c')}>
         {posting ? '⏳ Posting...' : '📸 Post to Instagram'}
       </button>
     </div>
@@ -359,7 +563,7 @@ function IGComments({ userId }) {
     setReplyLoading(p => ({ ...p, [c.id]: true }));
     try {
       const { data } = await axios.post(`${API_URL}/api/instagram/comment/ai-reply`, { comment: c.text, mediaCaption: c.mediaCaption });
-      setConfirmPopup({ commentId: c.id, reply: data.reply, comment: c });
+      setConfirmPopup({ commentId: c.id, reply: data.reply });
     } catch { alert('❌ AI reply failed'); }
     setReplyLoading(p => ({ ...p, [c.id]: false }));
   };
@@ -389,7 +593,7 @@ function IGComments({ userId }) {
       {confirmPopup && (
         <div style={{ position: 'fixed', inset: 0, background: '#000000bb', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem', maxWidth: '420px', width: '100%', boxSizing: 'border-box' }}>
-            <h3 style={{ margin: '0 0 0.5rem', color: '#fff' }}>🧠 AI Reply</h3>
+            <h3 style={{ margin: '0 0 0.8rem', color: '#fff' }}>🧠 AI Reply</h3>
             <div style={{ background: '#1e1e2e', borderRadius: '8px', padding: '0.8rem', marginBottom: '1rem', fontSize: '0.88rem', color: '#ccc', fontStyle: 'italic' }}>"{confirmPopup.reply}"</div>
             <div style={{ display: 'flex', gap: '0.8rem' }}>
               <button onClick={() => doReply(confirmPopup.commentId, confirmPopup.reply)} style={{ flex: 1, padding: '0.7rem', background: '#00ff88', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✅ Post</button>
@@ -398,137 +602,6 @@ function IGComments({ userId }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Gmail Inbox ──────────────────────────────────────────────
-function GmailInbox({ userId, onCompose }) {
-  const [emails, setEmails] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null);
-  const [emailBody, setEmailBody] = useState(null);
-  const [loadingBody, setLoadingBody] = useState(false);
-  const [aiReply, setAiReply] = useState('');
-  const [loadingReply, setLoadingReply] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [isMobile] = useState(window.innerWidth <= 768);
-
-  useEffect(() => {
-    axios.get(`${API_URL}/api/gmail/inbox/${userId}`)
-      .then(({ data }) => setEmails(data.emails || []))
-      .catch(console.error).finally(() => setLoading(false));
-  }, []);
-
-  const openEmail = async (email) => {
-    setSelected(email); setAiReply(''); setLoadingBody(true);
-    try {
-      const { data } = await axios.get(`${API_URL}/api/gmail/email/${userId}/${email.id}`);
-      setEmailBody(data);
-      setEmails(p => p.map(e => e.id === email.id ? { ...e, isUnread: false } : e));
-    } catch (err) { console.error(err); }
-    setLoadingBody(false);
-  };
-
-  const generateAiReply = async () => {
-    setLoadingReply(true);
-    try {
-      const { data } = await axios.post(`${API_URL}/api/gmail/ai-reply`, { subject: emailBody.subject, body: emailBody.body, from: emailBody.from });
-      setAiReply(data.reply);
-    } catch { alert('AI error'); }
-    setLoadingReply(false);
-  };
-
-  const sendReply = async () => {
-    setSending(true);
-    try {
-      const fromEmail = emailBody.from.match(/<(.+)>/)?.[1] || emailBody.from;
-      await axios.post(`${API_URL}/api/gmail/send`, { userId, to: fromEmail, subject: `Re: ${emailBody.subject}`, body: aiReply, replyToMessageId: selected.id });
-      alert('✅ Reply sent!'); setAiReply(''); setSelected(null); setEmailBody(null);
-    } catch { alert('❌ Send failed'); }
-    setSending(false);
-  };
-
-  const fmt = (d) => { try { return new Date(d).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; } };
-  const name = (from) => { const m = from.match(/^(.+?)\s*</); return m ? m[1].replace(/"/g, '') : from.split('@')[0]; };
-
-  if (loading) return <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>⏳ Loading inbox...</p>;
-  if (!emails.length) return <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>No emails found.</p>;
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: selected && !isMobile ? '1fr 1.3fr' : '1fr', gap: '1rem' }}>
-      {/* List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '60vh', overflowY: 'auto' }}>
-        {emails.map(email => (
-          <div key={email.id} onClick={() => openEmail(email)}
-            style={{ background: selected?.id === email.id ? '#1e1e2e' : '#0d0d14', border: `1px solid ${selected?.id === email.id ? '#ea433544' : '#2a2a3a'}`, borderRadius: '8px', padding: '0.7rem', cursor: 'pointer' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-              <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: email.isUnread ? 700 : 400, color: email.isUnread ? '#fff' : '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                {email.isUnread && <span style={{ width: '6px', height: '6px', background: '#ea4335', borderRadius: '50%', display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />}
-                {name(email.from)}
-              </p>
-              <span style={{ fontSize: '0.65rem', color: '#555', flexShrink: 0, marginLeft: '0.5rem' }}>{fmt(email.date)}</span>
-            </div>
-            <p style={{ margin: '0 0 0.1rem', fontSize: '0.78rem', color: email.isUnread ? '#ddd' : '#666', fontWeight: email.isUnread ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.subject}</p>
-            <p style={{ margin: 0, fontSize: '0.72rem', color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.snippet}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Detail */}
-      {selected && (
-        <div style={{ background: '#0d0d14', border: '1px solid #2a2a3a', borderRadius: '10px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '60vh', overflowY: 'auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <div>
-              <p style={{ margin: '0 0 0.2rem', fontWeight: 700, color: '#fff', fontSize: '0.9rem' }}>{emailBody?.subject || selected.subject}</p>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: '#888' }}>From: {emailBody?.from || selected.from}</p>
-            </div>
-            <button onClick={() => { setSelected(null); setEmailBody(null); setAiReply(''); }} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '1.1rem' }}>✕</button>
-          </div>
-          {loadingBody && <p style={{ color: '#888', fontSize: '0.85rem' }}>⏳ Loading...</p>}
-          {emailBody && <div style={{ background: '#13131a', borderRadius: '8px', padding: '0.8rem', fontSize: '0.83rem', color: '#ccc', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{emailBody.body || selected.snippet}</div>}
-          <button onClick={generateAiReply} disabled={loadingReply || !emailBody}
-            style={{ padding: '0.5rem 1rem', background: '#7c3aed22', color: '#a855f7', border: '1px solid #7c3aed44', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem', alignSelf: 'flex-start' }}>
-            {loadingReply ? '⏳ Generating...' : '🧠 AI Reply'}
-          </button>
-          {aiReply && (
-            <>
-              <textarea style={{ width: '100%', padding: '0.8rem', background: '#1e1e2e', border: '1px solid #7c3aed44', borderRadius: '8px', color: '#fff', fontSize: '0.83rem', outline: 'none', resize: 'vertical', minHeight: '100px', boxSizing: 'border-box', fontFamily: 'sans-serif' }}
-                value={aiReply} onChange={e => setAiReply(e.target.value)} />
-              <button onClick={sendReply} disabled={sending}
-                style={{ padding: '0.7rem', background: sending ? '#333' : '#ea4335', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
-                {sending ? '⏳ Sending...' : '📤 Send Reply'}
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Gmail Compose ────────────────────────────────────────────
-function GmailCompose({ userId, onClose }) {
-  const [form, setForm] = useState({ to: '', subject: '', body: '' });
-  const [sending, setSending] = useState(false);
-  const send = async () => {
-    if (!form.to || !form.subject || !form.body) return alert('Fill all fields!');
-    setSending(true);
-    try {
-      await axios.post(`${API_URL}/api/gmail/send`, { userId, ...form });
-      alert('✅ Email sent!'); onClose();
-    } catch { alert('❌ Send failed'); }
-    setSending(false);
-  };
-  const inp = { padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '8px', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%', boxSizing: 'border-box' };
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-      <input style={inp} placeholder="To (email address)" value={form.to} onChange={e => setForm(p => ({ ...p, to: e.target.value }))} />
-      <input style={inp} placeholder="Subject" value={form.subject} onChange={e => setForm(p => ({ ...p, subject: e.target.value }))} />
-      <textarea style={{ ...inp, minHeight: '150px', resize: 'vertical', fontFamily: 'sans-serif' }} placeholder="Email body..." value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} />
-      <button onClick={send} disabled={sending} style={{ padding: '0.8rem', background: sending ? '#333' : '#ea4335', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
-        {sending ? '⏳ Sending...' : '📤 Send Email'}
-      </button>
     </div>
   );
 }
@@ -549,7 +622,7 @@ function YTComments({ userId }) {
     setReplyLoading(p => ({ ...p, [c.id]: true }));
     try {
       const { data } = await axios.post(`${API_URL}/api/platforms/youtube/comment/ai-reply`, { comment: c.text, videoTitle: c.videoTitle });
-      setConfirmPopup({ commentId: c.id, reply: data.reply, comment: c });
+      setConfirmPopup({ commentId: c.id, reply: data.reply });
     } catch { alert('❌ Failed'); }
     setReplyLoading(p => ({ ...p, [c.id]: false }));
   };
@@ -607,18 +680,19 @@ function YTUpload({ userId }) {
     } catch (err) { alert('❌ ' + (err.response?.data?.message || 'Upload failed')); }
     setUploading(false);
   };
-  const inp = { padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '8px', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%', boxSizing: 'border-box' };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-      <input style={inp} placeholder="Video Title *" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
-      <textarea style={{ ...inp, minHeight: '80px', resize: 'vertical', fontFamily: 'sans-serif' }} placeholder="Description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
-      <input style={inp} placeholder="Tags (comma separated)" value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} />
+      <input style={inpStyle} placeholder="Video Title *" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
+      <textarea style={{ ...inpStyle, minHeight: '80px', resize: 'vertical', fontFamily: 'sans-serif' }} placeholder="Description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+      <input style={inpStyle} placeholder="Tags (comma separated)" value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} />
       <input ref={fileRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={e => setVideoFile(e.target.files[0])} />
       {videoFile
-        ? <div style={{ padding: '0.7rem 1rem', background: '#1e1e2e', border: '1px solid #ff444433', borderRadius: '8px', fontSize: '0.85rem', color: '#ccc', display: 'flex', justifyContent: 'space-between' }}><span>🎥 {videoFile.name}</span><button onClick={() => setVideoFile(null)} style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer' }}>✕</button></div>
+        ? <div style={{ padding: '0.7rem 1rem', background: '#1e1e2e', border: '1px solid #ff444433', borderRadius: '8px', fontSize: '0.85rem', color: '#ccc', display: 'flex', justifyContent: 'space-between' }}>
+          <span>🎥 {videoFile.name}</span><button onClick={() => setVideoFile(null)} style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer' }}>✕</button>
+        </div>
         : <button onClick={() => fileRef.current.click()} style={{ padding: '0.8rem', background: '#1e1e2e', color: '#888', border: '2px dashed #2a2a3a', borderRadius: '8px', cursor: 'pointer' }}>📂 Choose Video</button>
       }
-      <button onClick={upload} disabled={uploading || !videoFile || !form.title} style={{ padding: '0.9rem', background: uploading || !videoFile || !form.title ? '#333' : '#ff0000', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
+      <button onClick={upload} disabled={uploading || !videoFile || !form.title} style={primaryBtn(uploading || !videoFile || !form.title ? '#333' : '#ff0000')}>
         {uploading ? '⏳ Uploading...' : '🚀 Upload to YouTube'}
       </button>
     </div>

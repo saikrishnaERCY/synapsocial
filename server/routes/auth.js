@@ -54,32 +54,65 @@ router.get('/logout', (req, res) => {
   req.logout(() => res.redirect(process.env.CLIENT_URL));
 });
 
+// ─── ADD THESE 3 ROUTES TO server/routes/auth.js ─────────────────────────────
+// Paste them BEFORE module.exports = router;
+
+const bcrypt = require('bcryptjs');
+
 // Update profile name
 router.post('/update-profile', async (req, res) => {
   try {
     const { userId, name } = req.body;
-    await User.findByIdAndUpdate(userId, { $set: { name } });
-    res.json({ message: 'Updated' });
-  } catch { res.status(500).json({ message: 'Error' }); }
+    if (!userId || !name) return res.status(400).json({ message: 'Missing fields' });
+    await User.findByIdAndUpdate(userId, { $set: { name: name.trim() } });
+    res.json({ message: 'Profile updated', name: name.trim() });
+  } catch (err) {
+    console.error('Update profile error:', err.message);
+    res.status(500).json({ message: 'Error updating profile' });
+  }
 });
 
 // Change password
 router.post('/change-password', async (req, res) => {
   try {
-    const bcrypt = require('bcryptjs');
-    const { userId, newPassword } = req.body;
+    const { userId, currentPassword, newPassword } = req.body;
+    if (!userId || !newPassword) return res.status(400).json({ message: 'Missing fields' });
+    if (newPassword.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // If user has a password (not google-only), verify current password
+    if (user.password && currentPassword) {
+      const valid = await bcrypt.compare(currentPassword, user.password);
+      if (!valid) return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
     const hashed = await bcrypt.hash(newPassword, 10);
     await User.findByIdAndUpdate(userId, { $set: { password: hashed } });
-    res.json({ message: 'Changed' });
-  } catch { res.status(500).json({ message: 'Error' }); }
+    res.json({ message: 'Password changed successfully' });
+  } catch (err) {
+    console.error('Change password error:', err.message);
+    res.status(500).json({ message: 'Error changing password' });
+  }
 });
 
 // Delete account
 router.delete('/delete-account', async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.body.userId);
-    res.json({ message: 'Deleted' });
-  } catch { res.status(500).json({ message: 'Error' }); }
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: 'Missing userId' });
+    await User.findByIdAndDelete(userId);
+    // Also delete chats if you have a Chat model
+    try {
+      const Chat = require('../models/Chat');
+      await Chat.deleteMany({ userId });
+    } catch (e) { /* Chat model may not exist */ }
+    res.json({ message: 'Account deleted successfully' });
+  } catch (err) {
+    console.error('Delete account error:', err.message);
+    res.status(500).json({ message: 'Error deleting account' });
+  }
 });
 
 module.exports = router;
