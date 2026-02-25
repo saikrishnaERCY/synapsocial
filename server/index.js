@@ -43,6 +43,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Routes
+app.use('/api/instagram', require('./routes/instagram'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/trends', require('./routes/trends'));
@@ -50,6 +51,7 @@ app.use('/api/platforms', require('./routes/platforms'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/chats', require('./routes/chats'));
 app.use('/api/platforms/youtube', require('./routes/youtube'));
+
 
 // Health check
 app.get('/api/health', (req, res) => {
