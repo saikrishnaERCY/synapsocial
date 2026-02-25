@@ -5,6 +5,9 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:5000';
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
+
 // Resume upload setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -18,7 +21,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Connect LinkedIn
+// Connect LinkedIn — ✅ FIXED: use SERVER_URL
 router.get('/linkedin', (req, res) => {
   const { userId } = req.query;
   req.session.userId = userId;
@@ -27,7 +30,7 @@ router.get('/linkedin', (req, res) => {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.LINKEDIN_CLIENT_ID,
-    redirect_uri: 'http://localhost:5000/api/platforms/linkedin/callback',
+    redirect_uri: `${SERVER_URL}/api/platforms/linkedin/callback`,
     scope: 'profile email openid w_member_social',
     state: userId
   });
@@ -35,7 +38,7 @@ router.get('/linkedin', (req, res) => {
   res.redirect(`https://www.linkedin.com/oauth/v2/authorization?${params}`);
 });
 
-// LinkedIn callback
+// LinkedIn callback — ✅ FIXED: use SERVER_URL
 router.get('/linkedin/callback', async (req, res) => {
   const { code, state: userId } = req.query;
   try {
@@ -44,7 +47,7 @@ router.get('/linkedin/callback', async (req, res) => {
       new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: `${process.env.SERVER_URL}/api/platforms/linkedin/callback`,
+        redirect_uri: `${SERVER_URL}/api/platforms/linkedin/callback`,
         client_id: process.env.LINKEDIN_CLIENT_ID,
         client_secret: process.env.LINKEDIN_CLIENT_SECRET
       }),
@@ -68,10 +71,10 @@ router.get('/linkedin/callback', async (req, res) => {
       }
     });
 
-    res.redirect(`${process.env.CLIENT_URL}/dashboard?connected=linkedin`);
+    res.redirect(`${CLIENT_URL}/dashboard?connected=linkedin`);
   } catch (err) {
     console.error('LinkedIn callback error:', err.response?.data || err.message);
-    res.redirect(`${process.env.CLIENT_URL}/dashboard?error=linkedin_failed`);
+    res.redirect(`${CLIENT_URL}/dashboard?error=linkedin_failed`);
   }
 });
 
@@ -84,12 +87,10 @@ router.get('/status/:userId', async (req, res) => {
     res.json({
       platforms: user.connectedPlatforms,
       permissions: {
-        // LinkedIn
         linkedinAutoPost: user.permissions?.linkedinAutoPost || false,
         linkedinReplyComments: user.permissions?.linkedinReplyComments || false,
         linkedinSendDMs: user.permissions?.linkedinSendDMs || false,
         autoApplyJobs: user.permissions?.autoApplyJobs || false,
-        // YouTube
         youtubeAutoPost: user.permissions?.youtubeAutoPost || false,
         youtubeReplyComments: user.permissions?.youtubeReplyComments || false,
       },
@@ -104,15 +105,12 @@ router.get('/status/:userId', async (req, res) => {
 router.post('/permissions', async (req, res) => {
   try {
     const { userId, permissions } = req.body;
-    console.log('Saving permissions for', userId, ':', permissions);
     await User.findByIdAndUpdate(userId, {
       $set: {
-        // LinkedIn
         'permissions.linkedinAutoPost': permissions.linkedinAutoPost || false,
         'permissions.linkedinReplyComments': permissions.linkedinReplyComments || false,
         'permissions.linkedinSendDMs': permissions.linkedinSendDMs || false,
         'permissions.autoApplyJobs': permissions.autoApplyJobs || false,
-        // YouTube
         'permissions.youtubeAutoPost': permissions.youtubeAutoPost || false,
         'permissions.youtubeReplyComments': permissions.youtubeReplyComments || false,
       }
@@ -128,10 +126,7 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
   try {
     const { userId } = req.query;
     await User.findByIdAndUpdate(userId, {
-      $set: {
-        'resumePath': req.file.path,
-        'resumeName': req.file.originalname
-      }
+      $set: { 'resumePath': req.file.path, 'resumeName': req.file.originalname }
     });
     res.json({ message: 'Resume uploaded', filename: req.file.originalname });
   } catch (err) {

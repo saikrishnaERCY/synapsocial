@@ -1,4 +1,4 @@
-require('dotenv').config()
+require('dotenv').config();
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -9,8 +9,6 @@ const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const { startYoutubeAutoReplyJob } = require('./jobs/youtubeAutoReply');
 const passport = require('./config/passport');
-require('dotenv').config();
-
 
 const app = express();
 
@@ -28,14 +26,18 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
-// Session (required for passport)
+// ✅ FIXED: session works in both local + production
+const isProduction = process.env.NODE_ENV === 'production';
 app.use(session({
   secret: process.env.JWT_SECRET || 'synapsocial_secret_fallback',
   resave: true,
   saveUninitialized: true,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
+  cookie: {
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000
+  }
 }));
-
 
 app.use(passport.initialize());
 app.use(passport.session());
@@ -48,6 +50,7 @@ app.use('/api/platforms', require('./routes/platforms'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/chats', require('./routes/chats'));
 app.use('/api/platforms/youtube', require('./routes/youtube'));
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'SynapSocial API is live 🚀' });
@@ -55,10 +58,11 @@ app.get('/api/health', (req, res) => {
 
 mongoose.connect(process.env.MONGO_URI).then(() => {
   console.log('✅ MongoDB connected');
-  startYoutubeAutoReplyJob(); // ← add this
+  startYoutubeAutoReplyJob();
 });
-console.log("OPENROUTER KEY:", process.env.OPENROUTER_API_KEY);
-console.log("SERP KEY:", process.env.SERP_API_KEY);
+
+console.log("OPENROUTER KEY:", process.env.OPENROUTER_API_KEY?.slice(0, 20) + '...');
+console.log("SERP KEY:", process.env.SERP_API_KEY?.slice(0, 10) + '...');
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
