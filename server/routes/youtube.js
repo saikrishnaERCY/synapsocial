@@ -13,7 +13,7 @@ const upload = multer({
 const getOAuthClient = () => new google.auth.OAuth2(
   process.env.YOUTUBE_CLIENT_ID,
   process.env.YOUTUBE_CLIENT_SECRET,
-  'http://localhost:5000/api/platforms/youtube/callback'
+  `${process.env.YOUTUBE_CALLBACK_URL}`,
 );
 
 // Cheap way to get videos — 2 units instead of 100

@@ -44,7 +44,7 @@ router.get('/linkedin/callback', async (req, res) => {
       new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: 'http://localhost:5000/api/platforms/linkedin/callback',
+        redirect_uri: `${process.env.SERVER_URL}/api/platforms/linkedin/callback`,
         client_id: process.env.LINKEDIN_CLIENT_ID,
         client_secret: process.env.LINKEDIN_CLIENT_SECRET
       }),
