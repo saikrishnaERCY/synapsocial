@@ -321,7 +321,7 @@ router.post('/post/youtube', async (req, res) => {
     const oauth2Client = new google.auth.OAuth2(
       process.env.YOUTUBE_CLIENT_ID,
       process.env.YOUTUBE_CLIENT_SECRET,
-      `${process.env.YOUTUBE_CALLBACK_URL}`
+      process.env.YOUTUBE_CALLBACK_URL || 'http://localhost:5000/api/platforms/youtube/callback'
     );
     oauth2Client.setCredentials({
       access_token: user.youtubeToken,
