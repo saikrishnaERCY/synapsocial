@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const passport = require('passport');
 const { signup, login } = require('../controllers/authController');
+const User = require('../models/User');
 
 // Email auth
 router.post('/signup', signup);
