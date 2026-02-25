@@ -16,6 +16,15 @@ const userSchema = new mongoose.Schema({
   youtubeRefreshToken: String,
   youtubeChannel: { id: String, name: String },
 
+  // Instagram
+  instagramToken: String,
+  instagramAccountId: String,
+
+  // Gmail
+  gmailToken: String,
+  gmailRefreshToken: String,
+  gmailAutoReplyContacts: [String],
+
   // Resume
   resumePath: String,
   resumeName: String,
@@ -24,6 +33,7 @@ const userSchema = new mongoose.Schema({
     linkedin: { type: Boolean, default: false },
     instagram: { type: Boolean, default: false },
     youtube: { type: Boolean, default: false },
+    gmail: { type: Boolean, default: false },
   },
 
   permissions: {
@@ -32,9 +42,14 @@ const userSchema = new mongoose.Schema({
     linkedinReplyComments: { type: Boolean, default: false },
     linkedinSendDMs: { type: Boolean, default: false },
     autoApplyJobs: { type: Boolean, default: false },
+    // Instagram
+    instagramAutoPost: { type: Boolean, default: false },
+    instagramReplyComments: { type: Boolean, default: false },
     // YouTube
     youtubeAutoPost: { type: Boolean, default: false },
     youtubeReplyComments: { type: Boolean, default: false },
+    // Gmail
+    gmailAutoReply: { type: Boolean, default: false },
     // Legacy
     autoPost: { type: Boolean, default: false },
     replyComments: { type: Boolean, default: false },
