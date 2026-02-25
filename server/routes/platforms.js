@@ -8,25 +8,21 @@ const fs = require('fs');
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:5000';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
 
-// Resume upload setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = 'uploads/resumes';
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req, file, cb) => {
-    cb(null, `${req.query.userId}-resume${path.extname(file.originalname)}`);
-  }
+  filename: (req, file, cb) => cb(null, `${req.query.userId}-resume${path.extname(file.originalname)}`)
 });
 const upload = multer({ storage });
 
-// Connect LinkedIn — ✅ FIXED: use SERVER_URL
+// Connect LinkedIn
 router.get('/linkedin', (req, res) => {
   const { userId } = req.query;
   req.session.userId = userId;
   req.session.save();
-
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.LINKEDIN_CLIENT_ID,
@@ -34,11 +30,10 @@ router.get('/linkedin', (req, res) => {
     scope: 'profile email openid w_member_social',
     state: userId
   });
-
   res.redirect(`https://www.linkedin.com/oauth/v2/authorization?${params}`);
 });
 
-// LinkedIn callback — ✅ FIXED: use SERVER_URL
+// LinkedIn callback
 router.get('/linkedin/callback', async (req, res) => {
   const { code, state: userId } = req.query;
   try {
@@ -53,15 +48,12 @@ router.get('/linkedin/callback', async (req, res) => {
       }),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
-
     const accessToken = tokenRes.data.access_token;
     const profileRes = await axios.get('https://api.linkedin.com/v2/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
-
     const profile = profileRes.data;
     const sessionUserId = userId || req.session.userId;
-
     await User.findByIdAndUpdate(sessionUserId, {
       $set: {
         'connectedPlatforms.linkedin': true,
@@ -70,7 +62,6 @@ router.get('/linkedin/callback', async (req, res) => {
         'linkedinProfile.name': profile.name
       }
     });
-
     res.redirect(`${CLIENT_URL}/dashboard?connected=linkedin`);
   } catch (err) {
     console.error('LinkedIn callback error:', err.response?.data || err.message);
@@ -78,21 +69,28 @@ router.get('/linkedin/callback', async (req, res) => {
   }
 });
 
-// Get connection + permissions status
+// Platform status
 router.get('/status/:userId', async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
-
     res.json({
-      platforms: user.connectedPlatforms,
+      platforms: {
+        linkedin: user.connectedPlatforms?.linkedin || false,
+        instagram: user.connectedPlatforms?.instagram || false,
+        youtube: user.connectedPlatforms?.youtube || false,
+        gmail: user.connectedPlatforms?.gmail || false,
+      },
       permissions: {
         linkedinAutoPost: user.permissions?.linkedinAutoPost || false,
         linkedinReplyComments: user.permissions?.linkedinReplyComments || false,
         linkedinSendDMs: user.permissions?.linkedinSendDMs || false,
         autoApplyJobs: user.permissions?.autoApplyJobs || false,
+        instagramAutoPost: user.permissions?.instagramAutoPost || false,
+        instagramReplyComments: user.permissions?.instagramReplyComments || false,
         youtubeAutoPost: user.permissions?.youtubeAutoPost || false,
         youtubeReplyComments: user.permissions?.youtubeReplyComments || false,
+        gmailAutoReply: user.permissions?.gmailAutoReply || false,
       },
       resumeName: user.resumeName || ''
     });
@@ -111,8 +109,11 @@ router.post('/permissions', async (req, res) => {
         'permissions.linkedinReplyComments': permissions.linkedinReplyComments || false,
         'permissions.linkedinSendDMs': permissions.linkedinSendDMs || false,
         'permissions.autoApplyJobs': permissions.autoApplyJobs || false,
+        'permissions.instagramAutoPost': permissions.instagramAutoPost || false,
+        'permissions.instagramReplyComments': permissions.instagramReplyComments || false,
         'permissions.youtubeAutoPost': permissions.youtubeAutoPost || false,
         'permissions.youtubeReplyComments': permissions.youtubeReplyComments || false,
+        'permissions.gmailAutoReply': permissions.gmailAutoReply || false,
       }
     });
     res.json({ message: 'Permissions updated' });
