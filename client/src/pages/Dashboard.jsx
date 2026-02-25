@@ -3,7 +3,7 @@ import axios from 'axios';
 import Trends from './Trends';
 import Platforms from './Platforms';
 import Jobs from './Jobs';
-import Gmail from './Gmail';
+import Settings from './Settings';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://synapsocial-api.onrender.com';
 
@@ -264,7 +264,6 @@ export default function Dashboard() {
     return (
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0a0a0f', color: '#fff', fontFamily: 'sans-serif', position: 'relative' }}>
 
-            {/* Mobile overlay */}
             {isMobile && sidebarOpen && (
                 <div onClick={() => setSidebarOpen(false)}
                     style={{ position: 'fixed', inset: 0, background: '#000000aa', zIndex: 99 }} />
@@ -307,7 +306,6 @@ export default function Dashboard() {
                         { id: 'jobs', icon: '💼', label: 'Job Scanner' },
                         { id: 'schedule', icon: '📅', label: 'Schedule' },
                         { id: 'settings', icon: '⚙️', label: 'Settings' },
-                        { id: 'gmail', icon: '📧', label: 'Gmail' },
                     ].map(item => (
                         <div key={item.id}
                             style={activeNav === item.id
@@ -355,7 +353,6 @@ export default function Dashboard() {
             {/* Main */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: isMobile ? '0.6rem' : '1rem 1.5rem', height: '100vh', overflow: 'hidden', minWidth: 0 }}>
 
-                {/* Mobile top bar */}
                 {isMobile && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '0.6rem' }}>
                         <button onClick={() => setSidebarOpen(true)}
@@ -492,10 +489,13 @@ export default function Dashboard() {
                 {activeNav === 'trends' && <Trends />}
                 {activeNav === 'platforms' && <Platforms />}
                 {activeNav === 'jobs' && <Jobs />}
-                {activeNav === 'gmail' && <Gmail />}
-
-                {activeNav === 'schedule' && <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}><h2>📅 Scheduler</h2><p style={{ color: '#888' }}>Coming Soon!</p></div>}
-                {activeNav === 'settings' && <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}><h2>⚙️ Settings</h2><p style={{ color: '#888' }}>Coming Soon!</p></div>}
+                {activeNav === 'settings' && <Settings />}
+                {activeNav === 'schedule' && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <h2>📅 Scheduler</h2>
+                        <p style={{ color: '#888' }}>Coming Soon!</p>
+                    </div>
+                )}
             </div>
         </div>
     );

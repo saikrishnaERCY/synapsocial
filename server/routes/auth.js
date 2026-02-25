@@ -54,4 +54,32 @@ router.get('/logout', (req, res) => {
   req.logout(() => res.redirect(process.env.CLIENT_URL));
 });
 
+// Update profile name
+router.post('/update-profile', async (req, res) => {
+  try {
+    const { userId, name } = req.body;
+    await User.findByIdAndUpdate(userId, { $set: { name } });
+    res.json({ message: 'Updated' });
+  } catch { res.status(500).json({ message: 'Error' }); }
+});
+
+// Change password
+router.post('/change-password', async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const { userId, newPassword } = req.body;
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await User.findByIdAndUpdate(userId, { $set: { password: hashed } });
+    res.json({ message: 'Changed' });
+  } catch { res.status(500).json({ message: 'Error' }); }
+});
+
+// Delete account
+router.delete('/delete-account', async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.body.userId);
+    res.json({ message: 'Deleted' });
+  } catch { res.status(500).json({ message: 'Error' }); }
+});
+
 module.exports = router;
