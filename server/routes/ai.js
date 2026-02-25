@@ -169,6 +169,10 @@ router.post('/post/linkedin', async (req, res) => {
     if (!user?.linkedinToken)
       return res.status(400).json({ message: 'LinkedIn not connected' });
 
+    // ✅ ADD THIS
+if (!user?.permissions?.linkedinAutoPost)
+  return res.status(403).json({ message: 'Auto-post permission is OFF. Enable in Platforms → LinkedIn → Permissions.' });
+
     const profileRes = await axios.get('https://api.linkedin.com/v2/userinfo', {
       headers: { Authorization: `Bearer ${user.linkedinToken}` }
     });
