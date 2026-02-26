@@ -351,28 +351,33 @@ export default function Dashboard() {
             </div>
 
             {/* Main */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: isMobile ? '0.6rem' : '1rem 1.5rem', height: '100vh', overflow: 'hidden', minWidth: 0 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: isMobile ? '0.7rem 0.8rem' : '1rem 1.5rem', height: '100vh', overflow: 'hidden', minWidth: 0, boxSizing: 'border-box' }}>
 
                 {isMobile && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '0.6rem' }}>
-                        <button onClick={() => setSidebarOpen(true)}
-                            style={{ background: '#13131a', border: '1px solid #2a2a3a', color: '#fff', borderRadius: '8px', padding: '0.4rem 0.7rem', cursor: 'pointer', fontSize: '1.1rem' }}>
-                            ☰
-                        </button>
-                        <h2 style={{ margin: 0, color: '#a855f7', fontSize: '0.95rem', fontWeight: 800 }}>🧠 SynapSocial</h2>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem', padding: '0.5rem 0.3rem', borderBottom: '1px solid #2a2a3a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                            <button onClick={() => setSidebarOpen(true)}
+                                style={{ background: '#1e1e2e', border: '1px solid #2a2a3a', color: '#fff', borderRadius: '10px', padding: '0.55rem 0.85rem', cursor: 'pointer', fontSize: '1.3rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                ☰
+                            </button>
+                            <h2 style={{ margin: 0, color: '#a855f7', fontSize: '1.15rem', fontWeight: 900, letterSpacing: '-0.3px' }}>🧠 SynapSocial</h2>
+                        </div>
+                        <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1rem', color: '#fff' }}>
+                            {user_.name?.[0]?.toUpperCase() || 'U'}
+                        </div>
                     </div>
                 )}
 
                 {activeNav === 'chat' && (
                     <>
                         <div style={{ marginBottom: '0.6rem' }}>
-                            <h3 style={{ margin: '0 0 0.6rem', color: '#fff', fontSize: isMobile ? '0.9rem' : '1rem' }}>💬 AI Agent Console</h3>
+                            <h3 style={{ margin: '0 0 0.6rem', color: '#fff', fontSize: isMobile ? '1rem' : '1.05rem' }}>💬 AI Agent Console</h3>
                             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                                 {platforms.map(p => (
                                     <button key={p}
                                         style={platform === p
-                                            ? { padding: '0.3rem 0.8rem', background: '#7c3aed', color: '#fff', border: '1px solid #7c3aed', borderRadius: '20px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }
-                                            : { padding: '0.3rem 0.8rem', background: 'transparent', color: '#888', border: '1px solid #2a2a3a', borderRadius: '20px', cursor: 'pointer', fontSize: '0.75rem' }}
+                                            ? { padding: isMobile ? '0.4rem 1rem' : '0.3rem 0.8rem', background: '#7c3aed', color: '#fff', border: '1px solid #7c3aed', borderRadius: '20px', cursor: 'pointer', fontSize: isMobile ? '0.82rem' : '0.75rem', fontWeight: 600 }
+                                            : { padding: isMobile ? '0.4rem 1rem' : '0.3rem 0.8rem', background: 'transparent', color: '#888', border: '1px solid #2a2a3a', borderRadius: '20px', cursor: 'pointer', fontSize: isMobile ? '0.82rem' : '0.75rem' }}
                                         onClick={() => setPlatform(p)}>{p}</button>
                                 ))}
                             </div>
@@ -470,19 +475,19 @@ export default function Dashboard() {
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '12px', padding: '0.4rem 0.8rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#13131a', border: '1px solid #3a3a4a', borderRadius: '14px', padding: isMobile ? '0.6rem 0.8rem' : '0.4rem 0.8rem' }}>
                             <input ref={fileRef} type="file" style={{ display: 'none' }}
                                 accept="image/*,video/*,.pdf,.doc,.docx,.txt"
                                 onChange={e => setFile(e.target.files[0])} />
-                            <button style={{ padding: '0.4rem', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#666', flexShrink: 0 }}
+                            <button style={{ padding: '0.4rem', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: isMobile ? '1.3rem' : '1rem', color: '#666', flexShrink: 0 }}
                                 onClick={() => fileRef.current.click()}>📎</button>
-                            <textarea style={{ flex: 1, padding: '0.3rem 0', background: 'transparent', border: 'none', color: '#fff', fontSize: '0.88rem', outline: 'none', resize: 'none', fontFamily: 'sans-serif' }}
-                                rows={2} placeholder={`Ask AI to create ${platform} content...`}
+                            <textarea style={{ flex: 1, padding: '0.3rem 0', background: 'transparent', border: 'none', color: '#fff', fontSize: isMobile ? '1rem' : '0.88rem', outline: 'none', resize: 'none', fontFamily: 'sans-serif', lineHeight: 1.5 }}
+                                rows={isMobile ? 2 : 2} placeholder={`Ask AI to create ${platform} content...`}
                                 value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey} />
-                            <button style={{ width: '32px', height: '32px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 900, fontSize: '1rem', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            <button style={{ width: isMobile ? '40px' : '32px', height: isMobile ? '40px' : '32px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 900, fontSize: '1.2rem', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                 onClick={sendMessage} disabled={loading}>↑</button>
                         </div>
-                        <p style={{ color: '#333', fontSize: '0.7rem', margin: '0.3rem 0 0' }}>📎 attach · Enter to send · Shift+Enter new line</p>
+                        {!isMobile && <p style={{ color: '#333', fontSize: '0.7rem', margin: '0.3rem 0 0' }}>📎 attach · Enter to send · Shift+Enter new line</p>}
                     </>
                 )}
 
