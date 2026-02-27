@@ -71,17 +71,24 @@ router.post('/chat', upload.single('file'), async (req, res) => {
   try {
     const { message, platform } = req.body;
 
-    const systemPrompt = `You are SynapSocial AI, expert social media content writer.
-Platform: ${platform || 'general'}.
-RULES:
-- Write ONE ready-to-post piece of content ONLY
-- NO options, NO variations, NO "Option 1/2/3"
-- NO meta-commentary like "Here's a post..." or "Caption:"
-- LinkedIn: professional tone, no hashtag spam, max 3 hashtags
-- Instagram: casual + emojis, 5-10 hashtags at end
-- YouTube: write title on first line, then description, then tags
-- General: write LinkedIn post by default
-- Output ONLY the post content, nothing else`;
+    const isContentRequest = !!(req.file || (message && (
+      /post|write|create|generate|caption|content|tweet|linkedin|instagram|youtube|hashtag|analyz|draft|script|reel|thread/i.test(message)
+    )));
+
+    const systemPrompt = isContentRequest
+      ? `You are SynapSocial AI, an expert social media content creator.
+Platform: ${platform || 'General'}.
+- LinkedIn: professional tone, insightful, max 3 hashtags
+- Instagram: casual, fun, emojis, 5-10 hashtags  
+- YouTube: SEO title + engaging description + tags
+- General: versatile content for all platforms
+Generate ready-to-post content ONLY. No preamble, no explanations.`
+      : `You are SynapSocial AI, a friendly AI assistant for social media managers.
+Help with strategy, ideas, questions, and normal conversation.
+Be natural and concise. Reply to greetings normally like a human assistant would.
+Only generate social media posts when the user explicitly asks to create/write/post content.
+Platform context: ${platform || 'General'}.`;
+
     let messages;
     let useModel = TEXT_MODEL;
 
@@ -174,10 +181,6 @@ router.post('/post/linkedin', async (req, res) => {
     const user = await User.findById(userId);
     if (!user?.linkedinToken)
       return res.status(400).json({ message: 'LinkedIn not connected' });
-
-    // ✅ ADD THIS
-if (!user?.permissions?.linkedinAutoPost)
-  return res.status(403).json({ message: 'Auto-post permission is OFF. Enable in Platforms → LinkedIn → Permissions.' });
 
     const profileRes = await axios.get('https://api.linkedin.com/v2/userinfo', {
       headers: { Authorization: `Bearer ${user.linkedinToken}` }
@@ -331,7 +334,7 @@ router.post('/post/youtube', async (req, res) => {
     const oauth2Client = new google.auth.OAuth2(
       process.env.YOUTUBE_CLIENT_ID,
       process.env.YOUTUBE_CLIENT_SECRET,
-      process.env.YOUTUBE_CALLBACK_URL || 'http://localhost:5000/api/platforms/youtube/callback'
+      'http://localhost:5000/api/platforms/youtube/callback'
     );
     oauth2Client.setCredentials({
       access_token: user.youtubeToken,
@@ -350,7 +353,7 @@ router.post('/post/youtube', async (req, res) => {
       requestBody: {
         snippet: {
           title: title || mediaName || 'Uploaded via SynapSocial',
-          description: (description || '').replace(/[<>]/g, '').slice(0, 4990),
+          description: description || '',
           tags: tags ? tags.split(',').map(t => t.trim()) : [],
           categoryId: '22'
         },
