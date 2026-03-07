@@ -17,6 +17,7 @@ const platformConfig = [
   {
     id: 'instagram', name: 'Instagram', icon: '📸', color: '#e1306c',
     features: ['Auto Post', 'Reel Upload', 'Reply Comments'],
+    authUrl: `${API_URL}/api/instagram/connect`,
     permissions: [
       { key: 'instagramAutoPost', label: '📤 Auto-Post', desc: 'AI posts images & reels' },
       { key: 'instagramReplyComments', label: '💬 Reply Comments', desc: 'AI replies to comments' },
@@ -73,10 +74,19 @@ export default function Platforms() {
     fetchStatus();
     const params = new URLSearchParams(window.location.search);
     const conn = params.get('connected');
+    const igUser = params.get('ig_user');
     if (conn) {
       setConnected(prev => ({ ...prev, [conn]: true }));
       window.history.replaceState({}, '', '/dashboard');
       if (conn === 'gmail') setGmailModal('inbox');
+      if (conn === 'instagram' && igUser) {
+        setSaveMsg(`✅ Instagram @${decodeURIComponent(igUser)} connected!`);
+        setTimeout(() => setSaveMsg(''), 4000);
+      }
+    }
+    const errParam = params.get('error');
+    if (errParam === 'instagram_no_business_account') {
+      alert('⚠️ No Instagram Business Account found!\n\nMake sure your Instagram is:\n1. Switched to Business/Creator account\n2. Linked to a Facebook Page');
     }
   }, []);
 
@@ -111,7 +121,7 @@ export default function Platforms() {
   };
 
   const connectPlatform = (platform) => {
-    if (platform.id === 'instagram') { setIgModal('connect'); return; }
+    if (!platform.authUrl) { alert(`${platform.name} OAuth coming soon!`); return; }
     window.location.href = `${platform.authUrl}?userId=${user.id}`;
   };
 
