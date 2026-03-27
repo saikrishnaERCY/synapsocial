@@ -9,6 +9,7 @@ const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const { startYoutubeAutoReplyJob } = require('./jobs/youtubeAutoReply');
 const passport = require('./config/passport');
+const { startAutoReplyJobs } = require('./jobs/autoReplyJob');
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/chats', require('./routes/chats'));
 app.use('/api/platforms/youtube', require('./routes/youtube'));
 app.use('/api/gmail', require('./routes/gmail'));
+app.use('/api/linkedin-bot', require('./routes/linkedin-bot'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -62,6 +64,7 @@ mongoose.connect(process.env.MONGO_URI).then(() => {
   console.log('✅ MongoDB connected');
   startYoutubeAutoReplyJob();
 });
+startAutoReplyJobs();
 
 console.log("OPENROUTER KEY:", process.env.OPENROUTER_API_KEY?.slice(0, 20) + '...');
 console.log("SERP KEY:", process.env.SERP_API_KEY?.slice(0, 10) + '...');

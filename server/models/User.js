@@ -10,11 +10,16 @@ const userSchema = new mongoose.Schema({
   // LinkedIn
   linkedinToken: String,
   linkedinProfile: { id: String, name: String },
+  linkedinBotEmail: String,
+linkedinBotPassword: String,
+appliedJobs: [{ title: String, company: String, appliedAt: Date }],
 
   // YouTube
   youtubeToken: String,
   youtubeRefreshToken: String,
   youtubeChannel: { id: String, name: String },
+  youtubeAutomatedVideos: [String],
+repliedYtCommentIds: [String],
 
   // Instagram
   instagramToken: String,

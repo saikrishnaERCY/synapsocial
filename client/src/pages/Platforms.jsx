@@ -59,6 +59,7 @@ export default function Platforms() {
   const [igModal, setIgModal] = useState(null);
   const [gmailModal, setGmailModal] = useState(null);
   const [igTokenInput, setIgTokenInput] = useState('');
+  const [linkedinBotModal, setLinkedinBotModal] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const fileRef = useRef();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -221,6 +222,13 @@ export default function Platforms() {
                       </div>
                     ))}
 
+                    {platform.id === 'linkedin' && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <button style={{ width: '100%', padding: '0.5rem', background: '#7c3aed22', color: '#a855f7', border: '1px solid #7c3aed44', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}
+                          onClick={() => setLinkedinBotModal(true)}>🤖 Bot Settings (Auto-Apply + Comment Reply)</button>
+                      </div>
+                    )}
+
                     {platform.id === 'linkedin' && permissions.autoApplyJobs && (
                       <div style={{ background: '#1e1e2e', borderRadius: '8px', padding: '0.8rem', border: '1px dashed #7c3aed', marginTop: '0.3rem' }}>
                         <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: '#a855f7', fontWeight: 600 }}>📄 Resume for Job Scanning</p>
@@ -266,6 +274,13 @@ export default function Platforms() {
           </div>
         ))}
       </div>
+
+      {/* LinkedIn Bot Modal */}
+      {linkedinBotModal && (
+        <Modal onClose={() => setLinkedinBotModal(false)} title="🤖 LinkedIn Bot Settings">
+          <LinkedInBot userId={user.id} />
+        </Modal>
+      )}
 
       {igModal === 'connect' && (
         <Modal onClose={() => setIgModal(null)} title="📸 Connect Instagram">
@@ -631,9 +646,14 @@ function YTComments({ userId, autoReplyEnabled }) {
   const [replyLoading, setReplyLoading] = useState({});
   const [confirmPopup, setConfirmPopup] = useState(null);
   const [automateChecked, setAutomateChecked] = useState(false);
-  const [automatedVideos, setAutomatedVideos] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('ytAutomatedVideos') || '[]'); } catch { return []; }
-  });
+  const [automatedVideos, setAutomatedVideos] = useState([]);
+
+  useEffect(() => {
+    // Load automated videos from DB
+    axios.get(`${API_URL}/api/platforms/youtube/automated-videos/${userId}`)
+      .then(({ data }) => setAutomatedVideos(data.automatedVideos || []))
+      .catch(console.error);
+  }, [userId]);
 
   useEffect(() => {
     axios.get(`${API_URL}/api/platforms/youtube/comments/${userId}`).then(({ data }) => {
@@ -659,10 +679,9 @@ function YTComments({ userId, autoReplyEnabled }) {
       const ok = window.confirm('⚠️ Auto-Reply Comments permission is OFF.\n\nThis will send the reply manually only.\n\nEnable "Auto-Reply Comments" in YouTube Permissions to automate replies.\n\nSend anyway?');
       if (!ok) return;
     } else if (automateChecked) {
-      // Save video as automated
-      const updated = [...new Set([...automatedVideos, confirmPopup.videoId])];
-      setAutomatedVideos(updated);
-      localStorage.setItem('ytAutomatedVideos', JSON.stringify(updated));
+      // ✅ Save video automation to DB
+      await axios.post(`${API_URL}/api/platforms/youtube/automate-video`, { userId, videoId: confirmPopup.videoId });
+      setAutomatedVideos(prev => [...new Set([...prev, confirmPopup.videoId])]);
     }
 
     try {
@@ -769,6 +788,181 @@ function YTUpload({ userId, autoUploadEnabled }) {
       <button onClick={upload} disabled={uploading || !videoFile || !form.title} style={primaryBtn(uploading || !videoFile || !form.title ? '#333' : '#ff0000')}>
         {uploading ? '⏳ Uploading...' : '🚀 Upload to YouTube'}
       </button>
+    </div>
+  );
+}
+
+// ─── LinkedIn Bot Component ───────────────────────────────────────────
+function LinkedInBot({ userId }) {
+  const [creds, setCreds] = useState({ email: '', password: '' });
+  const [hasCredentials, setHasCredentials] = useState(false);
+  const [jobKeywords, setJobKeywords] = useState('');
+  const [jobLocation, setJobLocation] = useState('India');
+  const [maxJobs, setMaxJobs] = useState(5);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [appliedJobs, setAppliedJobs] = useState([]);
+  const [tab, setTab] = useState('setup'); // setup | jobs | comments
+
+  useEffect(() => {
+    axios.get(`${API_URL}/api/linkedin-bot/credentials-status/${userId}`)
+      .then(({ data }) => setHasCredentials(data.hasCredentials))
+      .catch(console.error);
+    axios.get(`${API_URL}/api/linkedin-bot/applied-jobs/${userId}`)
+      .then(({ data }) => setAppliedJobs(data.jobs || []))
+      .catch(console.error);
+  }, [userId]);
+
+  const saveCredentials = async () => {
+    if (!creds.email || !creds.password) return alert('Fill both fields!');
+    setLoading(true);
+    try {
+      await axios.post(`${API_URL}/api/linkedin-bot/save-credentials`, { userId, ...creds });
+      setHasCredentials(true);
+      setCreds({ email: '', password: '' });
+      setResult('✅ Credentials saved securely (encrypted)!');
+    } catch (err) { setResult('❌ ' + err.response?.data?.message || err.message); }
+    setLoading(false);
+  };
+
+  const testLogin = async () => {
+    setLoading(true); setResult('⏳ Testing login...');
+    try {
+      const { data } = await axios.post(`${API_URL}/api/linkedin-bot/test-login`, { userId });
+      setResult('✅ ' + data.message);
+    } catch (err) { setResult('❌ ' + (err.response?.data?.message || err.message)); }
+    setLoading(false);
+  };
+
+  const autoApplyJobs = async () => {
+    if (!jobKeywords) return alert('Enter job keywords!');
+    setLoading(true); setResult('⏳ Searching and applying to jobs...');
+    try {
+      const { data } = await axios.post(`${API_URL}/api/linkedin-bot/auto-apply-jobs`, {
+        userId, keywords: jobKeywords, location: jobLocation, maxJobs
+      });
+      setResult('✅ ' + data.message);
+      setAppliedJobs(prev => [...(data.applied || []).map(j => ({ ...j, appliedAt: new Date() })), ...prev]);
+    } catch (err) { setResult('❌ ' + (err.response?.data?.message || err.message)); }
+    setLoading(false);
+  };
+
+  const autoReplyComments = async () => {
+    setLoading(true); setResult('⏳ Checking and replying to comments...');
+    try {
+      const { data } = await axios.post(`${API_URL}/api/linkedin-bot/auto-reply-comments`, { userId });
+      setResult('✅ ' + data.message);
+    } catch (err) { setResult('❌ ' + (err.response?.data?.message || err.message)); }
+    setLoading(false);
+  };
+
+  const tabs = [
+    { id: 'setup', label: '⚙️ Setup' },
+    { id: 'jobs', label: '💼 Auto-Apply' },
+    { id: 'comments', label: '💬 Comments' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '0.4rem', borderBottom: '1px solid #2a2a3a', paddingBottom: '0.5rem' }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: '0.4rem 0.9rem', background: tab === t.id ? '#7c3aed' : 'transparent', color: tab === t.id ? '#fff' : '#888', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: tab === t.id ? 700 : 400 }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Setup Tab */}
+      {tab === 'setup' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+          <div style={{ background: '#1e1e2e', border: '1px solid #7c3aed33', borderRadius: '10px', padding: '0.8rem', fontSize: '0.78rem', color: '#888', lineHeight: 1.6 }}>
+            🔒 Your credentials are <strong style={{ color: '#a855f7' }}>AES-256 encrypted</strong> before saving to MongoDB. They are never stored in plain text.
+          </div>
+
+          {hasCredentials ? (
+            <div style={{ background: '#00ff8811', border: '1px solid #00ff8833', borderRadius: '8px', padding: '0.7rem 1rem', fontSize: '0.82rem', color: '#00ff88', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              ✅ Credentials saved! Bot is ready to use.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <p style={{ margin: 0, fontSize: '0.82rem', color: '#ccc' }}>Enter your LinkedIn login:</p>
+              <input style={inpStyle} type="email" placeholder="LinkedIn Email" value={creds.email} onChange={e => setCreds(p => ({ ...p, email: e.target.value }))} />
+              <input style={inpStyle} type="password" placeholder="LinkedIn Password" value={creds.password} onChange={e => setCreds(p => ({ ...p, password: e.target.value }))} />
+              <button onClick={saveCredentials} disabled={loading} style={{ padding: '0.7rem', background: '#0077b5', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }}>
+                {loading ? '⏳ Saving...' : '🔒 Save Credentials Securely'}
+              </button>
+            </div>
+          )}
+
+          {hasCredentials && (
+            <button onClick={testLogin} disabled={loading} style={{ padding: '0.6rem', background: '#1e1e2e', color: '#a855f7', border: '1px solid #7c3aed44', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+              {loading ? '⏳ Testing...' : '🧪 Test Login'}
+            </button>
+          )}
+
+          {hasCredentials && (
+            <button onClick={() => { if(window.confirm('Delete saved LinkedIn credentials?')) axios.post(`${API_URL}/api/linkedin-bot/save-credentials`, { userId, email: '', password: '' }).then(() => setHasCredentials(false)); }}
+              style={{ padding: '0.5rem', background: 'transparent', color: '#ff4444', border: '1px solid #ff444433', borderRadius: '8px', cursor: 'pointer', fontSize: '0.78rem' }}>
+              🗑 Remove Credentials
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Auto-Apply Tab */}
+      {tab === 'jobs' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+          {!hasCredentials && <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#ff8888' }}>⚠️ Set up credentials in Setup tab first!</div>}
+          <input style={inpStyle} placeholder="Job keywords (e.g. React Developer, Full Stack)" value={jobKeywords} onChange={e => setJobKeywords(e.target.value)} />
+          <input style={inpStyle} placeholder="Location (e.g. India, Mumbai, Remote)" value={jobLocation} onChange={e => setJobLocation(e.target.value)} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+            <label style={{ fontSize: '0.82rem', color: '#888' }}>Max jobs:</label>
+            <input type="number" min={1} max={20} value={maxJobs} onChange={e => setMaxJobs(Number(e.target.value))}
+              style={{ ...inpStyle, width: '80px' }} />
+          </div>
+          <button onClick={autoApplyJobs} disabled={loading || !hasCredentials}
+            style={{ padding: '0.8rem', background: loading || !hasCredentials ? '#333' : '#0077b5', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem' }}>
+            {loading ? '⏳ Applying...' : '🚀 Auto-Apply Now'}
+          </button>
+
+          {appliedJobs.length > 0 && (
+            <div>
+              <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#888', fontWeight: 600 }}>📋 Applied Jobs ({appliedJobs.length})</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '200px', overflowY: 'auto' }}>
+                {appliedJobs.slice(0, 20).map((job, i) => (
+                  <div key={i} style={{ background: '#1e1e2e', borderRadius: '6px', padding: '0.5rem 0.8rem', fontSize: '0.78rem' }}>
+                    <span style={{ color: '#fff', fontWeight: 600 }}>{job.title}</span>
+                    <span style={{ color: '#666', marginLeft: '0.5rem' }}>@ {job.company}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Comments Tab */}
+      {tab === 'comments' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+          {!hasCredentials && <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#ff8888' }}>⚠️ Set up credentials in Setup tab first!</div>}
+          <div style={{ background: '#1e1e2e', borderRadius: '8px', padding: '0.8rem', fontSize: '0.78rem', color: '#888', lineHeight: 1.6 }}>
+            💬 This will check your LinkedIn notifications for new comments on your posts and auto-reply using AI. Make sure <strong style={{ color: '#fff' }}>Reply Comments</strong> permission is ON.
+          </div>
+          <button onClick={autoReplyComments} disabled={loading || !hasCredentials}
+            style={{ padding: '0.8rem', background: loading || !hasCredentials ? '#333' : '#0077b5', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem' }}>
+            {loading ? '⏳ Replying...' : '💬 Auto-Reply Comments Now'}
+          </button>
+        </div>
+      )}
+
+      {/* Result message */}
+      {result && (
+        <div style={{ padding: '0.7rem 1rem', background: result.startsWith('✅') ? '#00ff8811' : result.startsWith('❌') ? '#ff440011' : '#7c3aed11', border: `1px solid ${result.startsWith('✅') ? '#00ff8833' : result.startsWith('❌') ? '#ff444433' : '#7c3aed33'}`, borderRadius: '8px', fontSize: '0.82rem', color: result.startsWith('✅') ? '#00ff88' : result.startsWith('❌') ? '#ff8888' : '#a855f7' }}>
+          {result}
+        </div>
+      )}
     </div>
   );
 }
