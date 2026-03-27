@@ -17,7 +17,6 @@ const platformConfig = [
   {
     id: 'instagram', name: 'Instagram', icon: '📸', color: '#e1306c',
     features: ['Auto Post', 'Reel Upload', 'Reply Comments'],
-    authUrl: `${API_URL}/api/instagram/connect`,
     permissions: [
       { key: 'instagramAutoPost', label: '📤 Auto-Post', desc: 'AI posts images & reels' },
       { key: 'instagramReplyComments', label: '💬 Reply Comments', desc: 'AI replies to comments' },
@@ -78,10 +77,14 @@ export default function Platforms() {
     if (conn) {
       setConnected(prev => ({ ...prev, [conn]: true }));
       window.history.replaceState({}, '', '/dashboard');
-      if (conn === 'gmail') setGmailModal('inbox');
+      // ✅ FIX: removed auto-open gmail inbox on connect
       if (conn === 'instagram' && igUser) {
         setSaveMsg(`✅ Instagram @${decodeURIComponent(igUser)} connected!`);
         setTimeout(() => setSaveMsg(''), 4000);
+      }
+      if (conn === 'gmail') {
+        setSaveMsg('✅ Gmail connected!');
+        setTimeout(() => setSaveMsg(''), 3000);
       }
     }
     const errParam = params.get('error');
@@ -94,7 +97,7 @@ export default function Platforms() {
     try {
       const { data } = await axios.get(`${API_URL}/api/platforms/status/${user.id}`);
       setConnected(data.platforms || {});
-      setPermissions({
+      const perms = {
         linkedinAutoPost: data.permissions?.linkedinAutoPost || false,
         linkedinReplyComments: data.permissions?.linkedinReplyComments || false,
         linkedinSendDMs: data.permissions?.linkedinSendDMs || false,
@@ -104,7 +107,10 @@ export default function Platforms() {
         youtubeAutoPost: data.permissions?.youtubeAutoPost || false,
         youtubeReplyComments: data.permissions?.youtubeReplyComments || false,
         gmailAutoReply: data.permissions?.gmailAutoReply || false,
-      });
+      };
+      setPermissions(perms);
+      // ✅ Save permissions to localStorage so Dashboard can read them
+      localStorage.setItem('synapPermissions', JSON.stringify(perms));
       if (data.resumeName) setResumeName(data.resumeName);
     } catch (err) { console.error(err); }
     setLoading(false);
@@ -121,6 +127,7 @@ export default function Platforms() {
   };
 
   const connectPlatform = (platform) => {
+    if (platform.id === 'instagram') { setIgModal('connect'); return; }
     if (!platform.authUrl) { alert(`${platform.name} OAuth coming soon!`); return; }
     window.location.href = `${platform.authUrl}?userId=${user.id}`;
   };
@@ -143,6 +150,7 @@ export default function Platforms() {
   const togglePermission = async (key) => {
     const updated = { ...permissions, [key]: !permissions[key] };
     setPermissions(updated);
+    localStorage.setItem('synapPermissions', JSON.stringify(updated));
     try {
       await axios.post(`${API_URL}/api/platforms/permissions`, { userId: user.id, permissions: updated });
       setSaveMsg('✅ Saved!'); setTimeout(() => setSaveMsg(''), 2000);
@@ -213,7 +221,6 @@ export default function Platforms() {
                       </div>
                     ))}
 
-                    {/* LinkedIn resume */}
                     {platform.id === 'linkedin' && permissions.autoApplyJobs && (
                       <div style={{ background: '#1e1e2e', borderRadius: '8px', padding: '0.8rem', border: '1px dashed #7c3aed', marginTop: '0.3rem' }}>
                         <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: '#a855f7', fontWeight: 600 }}>📄 Resume for Job Scanning</p>
@@ -227,7 +234,6 @@ export default function Platforms() {
                       </div>
                     )}
 
-                    {/* Instagram actions */}
                     {platform.id === 'instagram' && (
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem' }}>
                         <button style={{ flex: 1, padding: '0.5rem', background: '#e1306c22', color: '#e1306c', border: '1px solid #e1306c44', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }} onClick={() => setIgModal('comments')}>💬 Comments</button>
@@ -235,7 +241,6 @@ export default function Platforms() {
                       </div>
                     )}
 
-                    {/* YouTube actions */}
                     {platform.id === 'youtube' && (
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem' }}>
                         <button style={{ flex: 1, padding: '0.5rem', background: '#ff000022', color: '#ff6666', border: '1px solid #ff444444', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }} onClick={() => setYtModal('comments')}>💬 Comments</button>
@@ -243,7 +248,6 @@ export default function Platforms() {
                       </div>
                     )}
 
-                    {/* Gmail actions */}
                     {platform.id === 'gmail' && (
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem' }}>
                         <button style={{ flex: 1, padding: '0.5rem', background: '#ea433522', color: '#ea4335', border: '1px solid #ea433544', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }} onClick={() => setGmailModal('inbox')}>📧 Inbox</button>
@@ -263,33 +267,29 @@ export default function Platforms() {
         ))}
       </div>
 
-      {/* Instagram modals */}
       {igModal === 'connect' && (
         <Modal onClose={() => setIgModal(null)} title="📸 Connect Instagram">
-          <p style={{ color: '#888', fontSize: '0.85rem', margin: '0 0 1rem' }}>Paste your Instagram Business Access Token from Meta Business Suite</p>
+          <p style={{ color: '#888', fontSize: '0.85rem', margin: '0 0 1rem' }}>Paste your Instagram Business Access Token from Meta Graph API Explorer</p>
           <textarea style={modalInp} placeholder="Paste access token here..." value={igTokenInput} onChange={e => setIgTokenInput(e.target.value)} />
           <button onClick={connectInstagram} style={primaryBtn('#e1306c')}>🔗 Connect</button>
         </Modal>
       )}
       {igModal === 'post' && <Modal onClose={() => setIgModal(null)} title="📸 Post to Instagram"><IGPost userId={user.id} /></Modal>}
-      {igModal === 'comments' && <Modal onClose={() => setIgModal(null)} title="💬 Instagram Comments"><IGComments userId={user.id} /></Modal>}
+      {igModal === 'comments' && <Modal onClose={() => setIgModal(null)} title="💬 Instagram Comments"><IGComments userId={user.id} autoReplyEnabled={permissions.instagramReplyComments} /></Modal>}
 
-      {/* YouTube modals */}
       {ytModal && (
         <Modal onClose={() => setYtModal(null)} title={ytModal === 'comments' ? '💬 YouTube Comments' : '⬆️ Upload Video'}>
-          {ytModal === 'comments' && <YTComments userId={user.id} />}
-          {ytModal === 'upload' && <YTUpload userId={user.id} />}
+          {ytModal === 'comments' && <YTComments userId={user.id} autoReplyEnabled={permissions.youtubeReplyComments} />}
+          {ytModal === 'upload' && <YTUpload userId={user.id} autoUploadEnabled={permissions.youtubeAutoPost} />}
         </Modal>
       )}
 
-      {/* Gmail modals */}
-      {gmailModal === 'inbox' && <Modal onClose={() => setGmailModal(null)} title="📧 Gmail Inbox" wide><GmailInbox userId={user.id} onCompose={() => setGmailModal('compose')} /></Modal>}
+      {gmailModal === 'inbox' && <Modal onClose={() => setGmailModal(null)} title="📧 Gmail Inbox" wide><GmailInbox userId={user.id} onCompose={() => setGmailModal('compose')} autoReplyEnabled={permissions.gmailAutoReply} /></Modal>}
       {gmailModal === 'compose' && <Modal onClose={() => setGmailModal(null)} title="✏️ Compose Email"><GmailCompose userId={user.id} onClose={() => setGmailModal(null)} /></Modal>}
     </div>
   );
 }
 
-// ─── Shared Modal ─────────────────────────────────────────────
 function Modal({ onClose, title, children, wide }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#000000aa', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={onClose}>
@@ -308,24 +308,20 @@ const modalInp = { padding: '0.8rem', background: '#1e1e2e', border: '1px solid 
 const primaryBtn = (color) => ({ width: '100%', padding: '0.8rem', background: color, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 });
 const inpStyle = { padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '8px', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%', boxSizing: 'border-box' };
 
-// ─── Gmail Inbox ──────────────────────────────────────────────
-function GmailInbox({ userId, onCompose }) {
+// ── Gmail Inbox ── (with permission check)
+function GmailInbox({ userId, onCompose, autoReplyEnabled }) {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [emailBody, setEmailBody] = useState(null);
   const [loadingBody, setLoadingBody] = useState(false);
-  // AI Reply popup state
-  const [aiReplyPopup, setAiReplyPopup] = useState(null); // { reply, from, fromEmail, subject, threadId, emailId }
+  const [aiReplyPopup, setAiReplyPopup] = useState(null);
   const [loadingReply, setLoadingReply] = useState(false);
   const [autoReplyChecked, setAutoReplyChecked] = useState(false);
   const [sending, setSending] = useState(false);
   const [autoContacts, setAutoContacts] = useState([]);
 
-  useEffect(() => {
-    loadEmails();
-    loadAutoContacts();
-  }, []);
+  useEffect(() => { loadEmails(); loadAutoContacts(); }, []);
 
   const loadEmails = () => {
     setLoading(true);
@@ -360,13 +356,9 @@ function GmailInbox({ userId, onCompose }) {
       const fromEmail = emailBody.from.match(/<(.+)>/)?.[1] || emailBody.from;
       const isAutoContact = autoContacts.some(c => fromEmail.includes(c) || c.includes(fromEmail));
       setAiReplyPopup({
-        reply: data.reply,
-        from: emailBody.from,
-        fromEmail,
-        subject: emailBody.subject,
-        threadId: emailBody.threadId,
-        emailId: selected.id,
-        editedReply: data.reply,
+        reply: data.reply, from: emailBody.from, fromEmail,
+        subject: emailBody.subject, threadId: emailBody.threadId,
+        emailId: selected.id, editedReply: data.reply,
       });
       setAutoReplyChecked(isAutoContact);
     } catch { alert('❌ AI error'); }
@@ -375,24 +367,27 @@ function GmailInbox({ userId, onCompose }) {
 
   const sendAiReply = async () => {
     if (!aiReplyPopup) return;
+
+    // ✅ FIX: Warn if gmailAutoReply permission is off but still allow sending manually
+    if (!autoReplyEnabled && autoReplyChecked) {
+      const proceed = window.confirm('⚠️ Auto-Reply permission is OFF.\n\nYou can still send this reply manually, but future emails will NOT be auto-replied.\n\nEnable Auto-Reply in Permissions to automate this.\n\nSend this reply now?');
+      if (!proceed) return;
+    }
+
     setSending(true);
     try {
-      // If checkbox checked, save to auto-reply contacts
-      if (autoReplyChecked) {
+      if (autoReplyChecked && autoReplyEnabled) {
         await axios.post(`${API_URL}/api/gmail/auto-reply/add`, { userId, fromEmail: aiReplyPopup.fromEmail });
         setAutoContacts(p => [...new Set([...p, aiReplyPopup.fromEmail])]);
-      } else {
-        // Remove from auto-reply if unchecked
+      } else if (!autoReplyChecked) {
         await axios.post(`${API_URL}/api/gmail/auto-reply/remove`, { userId, fromEmail: aiReplyPopup.fromEmail });
         setAutoContacts(p => p.filter(c => c !== aiReplyPopup.fromEmail));
       }
 
       await axios.post(`${API_URL}/api/gmail/send`, {
-        userId,
-        to: aiReplyPopup.fromEmail,
+        userId, to: aiReplyPopup.fromEmail,
         subject: `Re: ${aiReplyPopup.subject}`,
-        body: aiReplyPopup.editedReply,
-        threadId: aiReplyPopup.threadId
+        body: aiReplyPopup.editedReply, threadId: aiReplyPopup.threadId
       });
 
       setEmails(p => p.map(e => e.id === aiReplyPopup.emailId ? { ...e, replied: true } : e));
@@ -409,6 +404,13 @@ function GmailInbox({ userId, onCompose }) {
 
   return (
     <div>
+      {/* ✅ FIX: Show permission warning banner */}
+      {!autoReplyEnabled && (
+        <div style={{ background: '#ff440011', border: '1px solid #ff444444', borderRadius: '8px', padding: '0.6rem 1rem', marginBottom: '0.8rem', fontSize: '0.78rem', color: '#ff8888', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          ⚠️ <strong>Auto-Reply is OFF.</strong> You can read and reply manually. Enable in Permissions to automate replies.
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <p style={{ margin: 0, fontSize: '0.82rem', color: '#888' }}>{emails.length} emails · {autoContacts.length} auto-reply contacts</p>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -418,7 +420,6 @@ function GmailInbox({ userId, onCompose }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: selected && window.innerWidth > 600 ? '1fr 1.2fr' : '1fr', gap: '0.8rem' }}>
-        {/* Email list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '55vh', overflowY: 'auto' }}>
           {emails.length === 0 && <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>No emails found</p>}
           {emails.map(email => (
@@ -437,7 +438,6 @@ function GmailInbox({ userId, onCompose }) {
           ))}
         </div>
 
-        {/* Email detail */}
         {selected && (
           <div style={{ background: '#0d0d14', border: '1px solid #2a2a3a', borderRadius: '10px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '55vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -461,7 +461,6 @@ function GmailInbox({ userId, onCompose }) {
         )}
       </div>
 
-      {/* ── AI Reply Popup ── */}
       {aiReplyPopup && (
         <div style={{ position: 'fixed', inset: 0, background: '#000000cc', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ background: '#13131a', border: '1px solid #7c3aed44', borderRadius: '20px', padding: '1.5rem', maxWidth: '500px', width: '100%', boxSizing: 'border-box', boxShadow: '0 0 40px #7c3aed22' }}>
@@ -471,26 +470,31 @@ function GmailInbox({ userId, onCompose }) {
             </div>
             <p style={{ margin: '0 0 0.8rem', fontSize: '0.78rem', color: '#888' }}>Replying to: <span style={{ color: '#ccc' }}>{aiReplyPopup.from}</span></p>
 
-            {/* Editable reply */}
             <textarea
               style={{ width: '100%', padding: '0.9rem', background: '#1e1e2e', border: '1px solid #7c3aed44', borderRadius: '10px', color: '#fff', fontSize: '0.85rem', outline: 'none', resize: 'vertical', minHeight: '120px', boxSizing: 'border-box', fontFamily: 'sans-serif', lineHeight: 1.6, marginBottom: '1rem' }}
               value={aiReplyPopup.editedReply}
               onChange={e => setAiReplyPopup(p => ({ ...p, editedReply: e.target.value }))}
             />
 
-            {/* Auto-reply checkbox */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem', padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '10px', marginBottom: '1rem', cursor: 'pointer' }}
-              onClick={() => setAutoReplyChecked(p => !p)}>
-              <div style={{ width: '18px', height: '18px', borderRadius: '4px', border: `2px solid ${autoReplyChecked ? '#7c3aed' : '#444'}`, background: autoReplyChecked ? '#7c3aed' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1px' }}>
-                {autoReplyChecked && <span style={{ color: '#fff', fontSize: '0.7rem', fontWeight: 900 }}>✓</span>}
+            {/* ✅ FIX: Only show automation checkbox if gmailAutoReply permission is ON */}
+            {autoReplyEnabled ? (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem', padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '10px', marginBottom: '1rem', cursor: 'pointer' }}
+                onClick={() => setAutoReplyChecked(p => !p)}>
+                <div style={{ width: '18px', height: '18px', borderRadius: '4px', border: `2px solid ${autoReplyChecked ? '#7c3aed' : '#444'}`, background: autoReplyChecked ? '#7c3aed' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1px' }}>
+                  {autoReplyChecked && <span style={{ color: '#fff', fontSize: '0.7rem', fontWeight: 900 }}>✓</span>}
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 0.2rem', fontSize: '0.83rem', fontWeight: 600, color: '#fff' }}>🤖 Automate this conversation</p>
+                  <p style={{ margin: 0, fontSize: '0.72rem', color: '#888', lineHeight: 1.5 }}>
+                    Future emails from <span style={{ color: '#a855f7' }}>{aiReplyPopup.fromEmail}</span> will be auto-replied by AI.
+                  </p>
+                </div>
               </div>
-              <div>
-                <p style={{ margin: '0 0 0.2rem', fontSize: '0.83rem', fontWeight: 600, color: '#fff' }}>🤖 Automate this conversation</p>
-                <p style={{ margin: 0, fontSize: '0.72rem', color: '#888', lineHeight: 1.5 }}>
-                  Future emails from <span style={{ color: '#a855f7' }}>{aiReplyPopup.fromEmail}</span> will be automatically replied to by AI without asking you.
-                </p>
+            ) : (
+              <div style={{ padding: '0.7rem', background: '#ff440011', border: '1px solid #ff444433', borderRadius: '10px', marginBottom: '1rem', fontSize: '0.78rem', color: '#ff8888' }}>
+                ⚠️ <strong>Auto-Reply is OFF.</strong> This reply will be sent manually only. Enable Auto-Reply in Gmail Permissions to automate future replies.
               </div>
-            </div>
+            )}
 
             <div style={{ display: 'flex', gap: '0.8rem' }}>
               <button onClick={sendAiReply} disabled={sending}
@@ -509,7 +513,6 @@ function GmailInbox({ userId, onCompose }) {
   );
 }
 
-// ─── Gmail Compose ────────────────────────────────────────────
 function GmailCompose({ userId, onClose }) {
   const [form, setForm] = useState({ to: '', subject: '', body: '' });
   const [sending, setSending] = useState(false);
@@ -534,7 +537,6 @@ function GmailCompose({ userId, onClose }) {
   );
 }
 
-// ─── Instagram Post ───────────────────────────────────────────
 function IGPost({ userId }) {
   const [caption, setCaption] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -560,8 +562,7 @@ function IGPost({ userId }) {
   );
 }
 
-// ─── Instagram Comments ───────────────────────────────────────
-function IGComments({ userId }) {
+function IGComments({ userId, autoReplyEnabled }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [replyLoading, setReplyLoading] = useState({});
@@ -578,6 +579,11 @@ function IGComments({ userId }) {
     setReplyLoading(p => ({ ...p, [c.id]: false }));
   };
   const doReply = async (commentId, reply) => {
+    // ✅ FIX: check permission
+    if (!autoReplyEnabled) {
+      const ok = window.confirm('⚠️ Auto-Reply Comments permission is OFF.\n\nThis will send the reply manually.\n\nEnable "Reply Comments" in Instagram Permissions to use this feature.\n\nSend anyway?');
+      if (!ok) return;
+    }
     try {
       await axios.post(`${API_URL}/api/instagram/comment/reply`, { userId, commentId, reply });
       setComments(p => p.map(c => c.id === commentId ? { ...c, replied: true } : c));
@@ -588,6 +594,7 @@ function IGComments({ userId }) {
   if (!comments.length) return <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>No comments found.</p>;
   return (
     <div>
+      {!autoReplyEnabled && <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.6rem 1rem', marginBottom: '0.8rem', fontSize: '0.78rem', color: '#ff8888' }}>⚠️ <strong>Reply Comments is OFF.</strong> Enable in Instagram Permissions to use AI replies.</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '55vh', overflowY: 'auto' }}>
         {comments.map(c => (
           <div key={c.id} style={{ background: '#1e1e2e', borderRadius: '10px', padding: '1rem', border: '1px solid #2a2a3a' }}>
@@ -604,9 +611,10 @@ function IGComments({ userId }) {
         <div style={{ position: 'fixed', inset: 0, background: '#000000bb', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem', maxWidth: '420px', width: '100%', boxSizing: 'border-box' }}>
             <h3 style={{ margin: '0 0 0.8rem', color: '#fff' }}>🧠 AI Reply</h3>
+            {!autoReplyEnabled && <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.5rem 0.8rem', marginBottom: '0.8rem', fontSize: '0.75rem', color: '#ff8888' }}>⚠️ Auto-Reply Comments is OFF. This sends manually only.</div>}
             <div style={{ background: '#1e1e2e', borderRadius: '8px', padding: '0.8rem', marginBottom: '1rem', fontSize: '0.88rem', color: '#ccc', fontStyle: 'italic' }}>"{confirmPopup.reply}"</div>
             <div style={{ display: 'flex', gap: '0.8rem' }}>
-              <button onClick={() => doReply(confirmPopup.commentId, confirmPopup.reply)} style={{ flex: 1, padding: '0.7rem', background: '#00ff88', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✅ Post</button>
+              <button onClick={() => doReply(confirmPopup.commentId, confirmPopup.reply)} style={{ flex: 1, padding: '0.7rem', background: '#00ff88', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✅ Send</button>
               <button onClick={() => setConfirmPopup(null)} style={{ flex: 1, padding: '0.7rem', background: 'transparent', color: '#888', border: '1px solid #2a2a3a', borderRadius: '8px', cursor: 'pointer' }}>❌ Skip</button>
             </div>
           </div>
@@ -616,37 +624,60 @@ function IGComments({ userId }) {
   );
 }
 
-// ─── YouTube Comments ─────────────────────────────────────────
-function YTComments({ userId }) {
+// ✅ FIX: YTComments with permission check + automation popup
+function YTComments({ userId, autoReplyEnabled }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [replyLoading, setReplyLoading] = useState({});
   const [confirmPopup, setConfirmPopup] = useState(null);
+  const [automateChecked, setAutomateChecked] = useState(false);
+  const [automatedVideos, setAutomatedVideos] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ytAutomatedVideos') || '[]'); } catch { return []; }
+  });
+
   useEffect(() => {
     axios.get(`${API_URL}/api/platforms/youtube/comments/${userId}`).then(({ data }) => {
       const now = Date.now();
       setComments((data.comments || []).filter(c => now - new Date(c.published).getTime() < 24 * 60 * 60 * 1000));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
+
   const getAiReply = async (c) => {
     setReplyLoading(p => ({ ...p, [c.id]: true }));
     try {
       const { data } = await axios.post(`${API_URL}/api/platforms/youtube/comment/ai-reply`, { comment: c.text, videoTitle: c.videoTitle });
-      setConfirmPopup({ commentId: c.id, reply: data.reply });
+      const isAutomated = automatedVideos.includes(c.videoId);
+      setAutomateChecked(isAutomated);
+      setConfirmPopup({ commentId: c.id, reply: data.reply, videoId: c.videoId, videoTitle: c.videoTitle });
     } catch { alert('❌ Failed'); }
     setReplyLoading(p => ({ ...p, [c.id]: false }));
   };
+
   const doReply = async (commentId, reply) => {
+    // ✅ FIX: check permission before sending
+    if (!autoReplyEnabled) {
+      const ok = window.confirm('⚠️ Auto-Reply Comments permission is OFF.\n\nThis will send the reply manually only.\n\nEnable "Auto-Reply Comments" in YouTube Permissions to automate replies.\n\nSend anyway?');
+      if (!ok) return;
+    } else if (automateChecked) {
+      // Save video as automated
+      const updated = [...new Set([...automatedVideos, confirmPopup.videoId])];
+      setAutomatedVideos(updated);
+      localStorage.setItem('ytAutomatedVideos', JSON.stringify(updated));
+    }
+
     try {
       await axios.post(`${API_URL}/api/platforms/youtube/comment/reply`, { userId, commentId, reply });
       setComments(p => p.map(c => c.id === commentId ? { ...c, replied: true } : c));
       setConfirmPopup(null);
     } catch (err) { alert('❌ ' + (err.response?.data?.message || 'Failed')); }
   };
+
   if (loading) return <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>⏳ Loading...</p>;
   if (!comments.length) return <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>No comments in last 24 hours.</p>;
+
   return (
     <div>
+      {!autoReplyEnabled && <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.6rem 1rem', marginBottom: '0.8rem', fontSize: '0.78rem', color: '#ff8888' }}>⚠️ <strong>Auto-Reply Comments is OFF.</strong> Enable in YouTube Permissions to automate replies.</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '55vh', overflowY: 'auto' }}>
         {comments.map(c => (
           <div key={c.id} style={{ background: '#1e1e2e', borderRadius: '10px', padding: '1rem', border: '1px solid #2a2a3a' }}>
@@ -657,13 +688,34 @@ function YTComments({ userId }) {
           </div>
         ))}
       </div>
+
       {confirmPopup && (
         <div style={{ position: 'fixed', inset: 0, background: '#000000bb', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ background: '#13131a', border: '1px solid #2a2a3a', borderRadius: '16px', padding: '1.5rem', maxWidth: '420px', width: '100%', boxSizing: 'border-box' }}>
+            <h3 style={{ margin: '0 0 0.5rem', color: '#fff' }}>🧠 AI Reply</h3>
+            <p style={{ margin: '0 0 0.8rem', fontSize: '0.75rem', color: '#666' }}>📹 {confirmPopup.videoTitle}</p>
+
+            {!autoReplyEnabled && <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.5rem 0.8rem', marginBottom: '0.8rem', fontSize: '0.75rem', color: '#ff8888' }}>⚠️ Auto-Reply is OFF. This sends manually only.</div>}
+
             <div style={{ background: '#1e1e2e', borderRadius: '8px', padding: '0.8rem', marginBottom: '1rem', fontSize: '0.88rem', color: '#ccc', fontStyle: 'italic' }}>"{confirmPopup.reply}"</div>
+
+            {/* ✅ FIX: Only show automation checkbox if permission is ON */}
+            {autoReplyEnabled && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem', padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '10px', marginBottom: '1rem', cursor: 'pointer' }}
+                onClick={() => setAutomateChecked(p => !p)}>
+                <div style={{ width: '18px', height: '18px', borderRadius: '4px', border: `2px solid ${automateChecked ? '#ff0000' : '#444'}`, background: automateChecked ? '#ff0000' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1px' }}>
+                  {automateChecked && <span style={{ color: '#fff', fontSize: '0.7rem', fontWeight: 900 }}>✓</span>}
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 0.2rem', fontSize: '0.83rem', fontWeight: 600, color: '#fff' }}>🤖 Auto-reply all comments on this video</p>
+                  <p style={{ margin: 0, fontSize: '0.72rem', color: '#888' }}>Future comments on "<span style={{ color: '#ff6666' }}>{confirmPopup.videoTitle?.slice(0, 30)}...</span>" will be auto-replied by AI.</p>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '0.8rem' }}>
-              <button onClick={() => doReply(confirmPopup.commentId, confirmPopup.reply)} style={{ flex: 1, padding: '0.7rem', background: '#00ff88', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✅ Post</button>
-              <button onClick={() => setConfirmPopup(null)} style={{ flex: 1, padding: '0.7rem', background: 'transparent', color: '#888', border: '1px solid #2a2a3a', borderRadius: '8px', cursor: 'pointer' }}>❌ Skip</button>
+              <button onClick={() => doReply(confirmPopup.commentId, confirmPopup.reply)} style={{ flex: 1, padding: '0.7rem', background: '#ff0000', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>📤 Send</button>
+              <button onClick={() => setConfirmPopup(null)} style={{ flex: 1, padding: '0.7rem', background: 'transparent', color: '#888', border: '1px solid #2a2a3a', borderRadius: '8px', cursor: 'pointer' }}>Skip</button>
             </div>
           </div>
         </div>
@@ -672,12 +724,13 @@ function YTComments({ userId }) {
   );
 }
 
-// ─── YouTube Upload ───────────────────────────────────────────
-function YTUpload({ userId }) {
+// ✅ FIX: YTUpload with permission warning
+function YTUpload({ userId, autoUploadEnabled }) {
   const [form, setForm] = useState({ title: '', description: '', tags: '' });
   const [videoFile, setVideoFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef();
+
   const upload = async () => {
     if (!videoFile || !form.title) return alert('Title and video required!');
     setUploading(true);
@@ -690,8 +743,19 @@ function YTUpload({ userId }) {
     } catch (err) { alert('❌ ' + (err.response?.data?.message || 'Upload failed')); }
     setUploading(false);
   };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+      {/* ✅ FIX: Show info banner based on permission */}
+      {!autoUploadEnabled ? (
+        <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#ff8888' }}>
+          ⚠️ <strong>Auto-Upload is OFF.</strong> You can still upload manually below. Enable "Auto-Upload Videos" in Permissions for AI to upload automatically.
+        </div>
+      ) : (
+        <div style={{ background: '#00ff8811', border: '1px solid #00ff8833', borderRadius: '8px', padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#00ff88' }}>
+          ✅ <strong>Auto-Upload is ON.</strong> AI can upload videos automatically.
+        </div>
+      )}
       <input style={inpStyle} placeholder="Video Title *" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
       <textarea style={{ ...inpStyle, minHeight: '80px', resize: 'vertical', fontFamily: 'sans-serif' }} placeholder="Description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
       <input style={inpStyle} placeholder="Tags (comma separated)" value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} />

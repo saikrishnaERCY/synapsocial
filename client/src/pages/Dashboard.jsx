@@ -22,14 +22,14 @@ export default function Dashboard() {
     const [chats, setChats] = useState([]);
     const [activeChatId, setActiveChatId] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 900);
     const mediaFilesRef = useRef({});
     const bottomRef = useRef(null);
     const fileRef = useRef(null);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        const handleResize = () => setIsMobile(window.innerWidth <= 900);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -64,7 +64,10 @@ export default function Dashboard() {
     }, []);
 
     useEffect(() => {
-        const handleNav = (e) => setActiveNav(e.detail);
+        const handleNav = (e) => {
+            setActiveNav(e.detail);
+            if (isMobile) setSidebarOpen(false);
+        };
         window.addEventListener('navigate', handleNav);
         return () => window.removeEventListener('navigate', handleNav);
     }, []);
@@ -199,6 +202,13 @@ export default function Dashboard() {
     };
 
     const postToLinkedIn = async (content, mediaId = null) => {
+        // ✅ FIX: Check linkedinAutoPost permission
+        const perms = JSON.parse(localStorage.getItem('synapPermissions') || '{}');
+        if (!perms.linkedinAutoPost) {
+            const ok = window.confirm('⚠️ LinkedIn Auto-Post permission is OFF.\n\nEnable "Auto-Post" in LinkedIn Permissions to post from chat.\n\nWould you like to go to Platforms settings?');
+            if (ok) window.dispatchEvent(new CustomEvent('navigate', { detail: 'platforms' }));
+            return;
+        }
         setPosting(true);
         try {
             const mediaData = mediaId ? mediaFilesRef.current[mediaId] : null;
@@ -225,6 +235,13 @@ export default function Dashboard() {
     };
 
     const postToYouTube = async (content, mediaId = null) => {
+        // ✅ FIX: Check youtubeAutoPost permission
+        const perms = JSON.parse(localStorage.getItem('synapPermissions') || '{}');
+        if (!perms.youtubeAutoPost) {
+            const ok = window.confirm('⚠️ YouTube Auto-Upload permission is OFF.\n\nEnable "Auto-Upload Videos" in YouTube Permissions to post from chat.\n\nWould you like to go to Platforms settings?');
+            if (ok) window.dispatchEvent(new CustomEvent('navigate', { detail: 'platforms' }));
+            return;
+        }
         setPosting(true);
         try {
             const mediaData = mediaId ? mediaFilesRef.current[mediaId] : null;
@@ -264,41 +281,43 @@ export default function Dashboard() {
     return (
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#0a0a0f', color: '#fff', fontFamily: 'sans-serif', position: 'relative' }}>
 
+            {/* Mobile sidebar overlay */}
             {isMobile && sidebarOpen && (
                 <div onClick={() => setSidebarOpen(false)}
-                    style={{ position: 'fixed', inset: 0, background: '#000000aa', zIndex: 99 }} />
+                    style={{ position: 'fixed', inset: 0, background: '#000000cc', zIndex: 99 }} />
             )}
 
-            {/* Sidebar */}
+            {/* Sidebar — desktop always visible, mobile slides in */}
             <div style={{
                 width: '220px', background: '#13131a', borderRight: '1px solid #2a2a3a',
                 padding: '1rem 0.8rem', display: 'flex', flexDirection: 'column',
-                height: '100vh', overflow: 'hidden',
+                height: '100vh', overflow: 'hidden', flexShrink: 0,
                 ...(isMobile ? {
-                    position: 'fixed', top: 0, left: 0, zIndex: 100,
+                    position: 'fixed', top: 0, left: 0, zIndex: 100, width: '260px',
                     transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-                    transition: 'transform 0.3s ease'
+                    transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
+                    boxShadow: sidebarOpen ? '4px 0 24px #0008' : 'none'
                 } : {})
             }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h2 style={{ color: '#a855f7', margin: 0, fontSize: '1rem', fontWeight: 800 }}>🧠 SynapSocial</h2>
+                    <h2 style={{ color: '#a855f7', margin: 0, fontSize: '1.1rem', fontWeight: 900 }}>🧠 SynapSocial</h2>
                     {isMobile && (
                         <button onClick={() => setSidebarOpen(false)}
-                            style={{ background: 'none', border: 'none', color: '#888', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+                            style={{ background: '#2a2a3a', border: 'none', color: '#fff', fontSize: '1rem', cursor: 'pointer', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                     )}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem', padding: '0.6rem', background: '#1e1e2e', borderRadius: '10px' }}>
-                    <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', flexShrink: 0 }}>
-                        {user_.name?.[0] || 'U'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem', padding: '0.7rem', background: '#1e1e2e', borderRadius: '12px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1rem', flexShrink: 0, color: '#fff' }}>
+                        {user_.name?.[0]?.toUpperCase() || 'U'}
                     </div>
                     <div style={{ overflow: 'hidden' }}>
-                        <p style={{ margin: 0, fontSize: '0.78rem', fontWeight: 600, color: '#fff' }}>{user_.name || 'User'}</p>
-                        <p style={{ margin: 0, fontSize: '0.65rem', color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '130px' }}>{user_.email || ''}</p>
+                        <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: '#fff' }}>{user_.name || 'User'}</p>
+                        <p style={{ margin: 0, fontSize: '0.67rem', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>{user_.email || ''}</p>
                     </div>
                 </div>
 
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                     {[
                         { id: 'chat', icon: '💬', label: 'AI Chat' },
                         { id: 'trends', icon: '📈', label: 'Trends' },
@@ -309,10 +328,10 @@ export default function Dashboard() {
                     ].map(item => (
                         <div key={item.id}
                             style={activeNav === item.id
-                                ? { padding: '0.6rem 0.8rem', borderRadius: '8px', cursor: 'pointer', color: '#fff', fontSize: '0.83rem', background: '#7c3aed22', borderLeft: '3px solid #7c3aed' }
-                                : { padding: '0.6rem 0.8rem', borderRadius: '8px', cursor: 'pointer', color: '#666', fontSize: '0.83rem' }}
+                                ? { padding: '0.7rem 0.9rem', borderRadius: '10px', cursor: 'pointer', color: '#fff', fontSize: '0.88rem', fontWeight: 600, background: '#7c3aed33', borderLeft: '3px solid #a855f7', display: 'flex', alignItems: 'center', gap: '0.6rem' }
+                                : { padding: '0.7rem 0.9rem', borderRadius: '10px', cursor: 'pointer', color: '#666', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
                             onClick={() => navTo(item.id)}>
-                            {item.icon} {item.label}
+                            <span style={{ fontSize: '1rem' }}>{item.icon}</span> {item.label}
                         </div>
                     ))}
                 </nav>
@@ -320,14 +339,14 @@ export default function Dashboard() {
                 {activeNav === 'chat' && (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginTop: '0.8rem', overflow: 'hidden' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                            <span style={{ fontSize: '0.72rem', color: '#555', fontWeight: 600, textTransform: 'uppercase' }}>Recent Chats</span>
+                            <span style={{ fontSize: '0.72rem', color: '#555', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Recent Chats</span>
                             <button onClick={startNewChat}
-                                style={{ padding: '0.2rem 0.6rem', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
+                                style={{ padding: '0.25rem 0.7rem', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>
                                 + New
                             </button>
                         </div>
                         <div style={{ overflowY: 'auto', flex: 1 }}>
-                            {chats.length === 0 && <p style={{ color: '#444', fontSize: '0.75rem', textAlign: 'center' }}>No chats yet</p>}
+                            {chats.length === 0 && <p style={{ color: '#444', fontSize: '0.75rem', textAlign: 'center', marginTop: '1rem' }}>No chats yet</p>}
                             {chats.map(chat => (
                                 <div key={chat._id}
                                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.6rem', borderRadius: '8px', cursor: 'pointer', marginBottom: '0.2rem', background: activeChatId === chat._id ? '#7c3aed22' : 'transparent' }}
@@ -336,7 +355,7 @@ export default function Dashboard() {
                                         <p style={{ margin: 0, fontSize: '0.75rem', color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title}</p>
                                         <p style={{ margin: 0, fontSize: '0.62rem', color: '#555' }}>{formatTime(chat.updatedAt)}</p>
                                     </div>
-                                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.7rem', opacity: 0.4 }}
+                                    <button style={{ background: '#ff444422', border: '1px solid #ff444444', cursor: 'pointer', fontSize: '0.75rem', color: '#ff6666', borderRadius: '6px', padding: '0.2rem 0.4rem', flexShrink: 0 }}
                                         onClick={(e) => deleteChat(e, chat._id)}>🗑</button>
                                 </div>
                             ))}
@@ -345,31 +364,50 @@ export default function Dashboard() {
                 )}
 
                 <button onClick={() => { localStorage.clear(); window.location.href = '/login'; }}
-                    style={{ padding: '0.6rem', background: 'transparent', color: '#444', border: '1px solid #1e1e2e', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                    style={{ padding: '0.65rem', background: 'transparent', color: '#555', border: '1px solid #2a2a3a', borderRadius: '10px', cursor: 'pointer', fontSize: '0.82rem', marginTop: '0.5rem' }}>
                     🚪 Logout
                 </button>
             </div>
 
-            {/* Main */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: isMobile ? '0.7rem 0.8rem' : '1rem 1.5rem', height: '100vh', overflow: 'hidden', minWidth: 0, boxSizing: 'border-box' }}>
+            {/* Main content area */}
+            <div style={{
+                flex: 1, display: 'flex', flexDirection: 'column',
+                height: '100vh', overflow: 'hidden', minWidth: 0,
+                paddingBottom: isMobile ? '64px' : '0',
+                padding: isMobile ? '0' : '1rem 1.5rem',
+            }}>
 
+                {/* Mobile top header — ALWAYS SHOWN on mobile */}
                 {isMobile && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem', padding: '0.5rem 0.3rem', borderBottom: '1px solid #2a2a3a' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                            <button onClick={() => setSidebarOpen(true)}
-                                style={{ background: '#1e1e2e', border: '1px solid #2a2a3a', color: '#fff', borderRadius: '10px', padding: '0.55rem 0.85rem', cursor: 'pointer', fontSize: '1.3rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                ☰
-                            </button>
-                            <h2 style={{ margin: 0, color: '#a855f7', fontSize: '1.15rem', fontWeight: 900, letterSpacing: '-0.3px' }}>🧠 SynapSocial</h2>
-                        </div>
-                        <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1rem', color: '#fff' }}>
+                    <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '0.75rem 1rem', background: '#13131a',
+                        borderBottom: '1px solid #2a2a3a', flexShrink: 0,
+                        position: 'sticky', top: 0, zIndex: 10
+                    }}>
+                        <button onClick={() => setSidebarOpen(true)}
+                            style={{
+                                background: '#1e1e2e', border: '1px solid #2a2a3a',
+                                color: '#fff', borderRadius: '10px',
+                                width: '40px', height: '40px',
+                                cursor: 'pointer', fontSize: '1.2rem',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0
+                            }}>☰</button>
+                        <h2 style={{ margin: 0, color: '#a855f7', fontSize: '1.1rem', fontWeight: 900 }}>🧠 SynapSocial</h2>
+                        <div style={{
+                            width: '38px', height: '38px', borderRadius: '50%',
+                            background: 'linear-gradient(135deg,#7c3aed,#a855f7)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 800, fontSize: '1rem', color: '#fff', flexShrink: 0
+                        }}>
                             {user_.name?.[0]?.toUpperCase() || 'U'}
                         </div>
                     </div>
                 )}
 
                 {activeNav === 'chat' && (
-                    <>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: isMobile ? '0.8rem 0.8rem 0' : '0' }}>
                         <div style={{ marginBottom: '0.6rem' }}>
                             <h3 style={{ margin: '0 0 0.6rem', color: '#fff', fontSize: isMobile ? '1rem' : '1.05rem' }}>💬 AI Agent Console</h3>
                             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -488,7 +526,7 @@ export default function Dashboard() {
                                 onClick={sendMessage} disabled={loading}>↑</button>
                         </div>
                         {!isMobile && <p style={{ color: '#333', fontSize: '0.7rem', margin: '0.3rem 0 0' }}>📎 attach · Enter to send · Shift+Enter new line</p>}
-                    </>
+                    </div>
                 )}
 
                 {activeNav === 'trends' && <Trends />}
@@ -502,6 +540,41 @@ export default function Dashboard() {
                     </div>
                 )}
             </div>
+
+            {/* Mobile Bottom Navigation Bar */}
+            {isMobile && (
+                <div style={{
+                    position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+                    background: '#13131a', borderTop: '1px solid #2a2a3a',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-around',
+                    padding: '0.4rem 0', height: '60px',
+                    boxShadow: '0 -4px 20px #00000088'
+                }}>
+                    {[
+                        { id: 'chat', icon: '💬', label: 'Chat' },
+                        { id: 'trends', icon: '📈', label: 'Trends' },
+                        { id: 'platforms', icon: '🔗', label: 'Platforms' },
+                        { id: 'jobs', icon: '💼', label: 'Jobs' },
+                        { id: 'settings', icon: '⚙️', label: 'Settings' },
+                    ].map(item => (
+                        <button key={item.id} onClick={() => setActiveNav(item.id)}
+                            style={{
+                                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                gap: '0.15rem', background: 'none', border: 'none', cursor: 'pointer',
+                                padding: '0.3rem 0.6rem', borderRadius: '10px',
+                                color: activeNav === item.id ? '#a855f7' : '#555',
+                                transition: 'color 0.2s',
+                                minWidth: '52px'
+                            }}>
+                            <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>{item.icon}</span>
+                            <span style={{ fontSize: '0.62rem', fontWeight: activeNav === item.id ? 700 : 400 }}>{item.label}</span>
+                            {activeNav === item.id && (
+                                <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#a855f7', marginTop: '1px' }} />
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
