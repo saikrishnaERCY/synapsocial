@@ -164,26 +164,35 @@ router.get('/comments/:userId', async (req, res) => {
 router.post('/comment/ai-reply', async (req, res) => {
   try {
     const { comment, videoTitle } = req.body;
+    if (!comment) return res.status(400).json({ message: 'comment is required' });
+
     const aiRes = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
-        model: 'meta-llama/llama-3.1-8b-instruct:free',
+        model: 'google/gemini-2.5-flash-lite-preview-09-2025',
         max_tokens: 80,
         messages: [{
           role: 'user',
-          content: `Write a short friendly YouTube comment reply (max 1-2 sentences, 1 emoji) to this comment on video "${videoTitle}": "${comment}". Just the reply text, nothing else.`,
+          content: `Write a short friendly YouTube comment reply (1-2 sentences, 1 emoji) to: "${comment}". Reply text only, nothing else.`,
         }],
       },
       {
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://synapsocial.vercel.app',
+          'X-Title': 'SynapSocial',
         },
+        timeout: 15000,
       }
     );
-    res.json({ reply: aiRes.data.choices[0].message.content.trim() });
+
+    const reply = aiRes.data?.choices?.[0]?.message?.content?.trim();
+    if (!reply) throw new Error('Empty response from AI');
+    res.json({ reply });
   } catch (err) {
-    res.status(500).json({ message: 'AI error', error: err.message });
+    console.error('YT AI reply error:', err.response?.data || err.message);
+    res.status(500).json({ message: err.response?.data?.error?.message || err.message });
   }
 });
 

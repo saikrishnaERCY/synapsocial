@@ -1,13 +1,9 @@
 // server/jobs/autoReplyJob.js
-// Runs every 5 mins — auto-replies YouTube comments + Gmail
-// Works 24/7 even when users are logged out / sleeping
-
 const cron = require('node-cron');
 const { google } = require('googleapis');
 const axios = require('axios');
 const User = require('../models/User');
 
-// ── OAuth clients ─────────────────────────────────────────────────────
 const getYTOAuth = (user) => {
   const client = new google.auth.OAuth2(
     process.env.YOUTUBE_CLIENT_ID,
@@ -18,11 +14,9 @@ const getYTOAuth = (user) => {
     access_token: user.youtubeToken,
     refresh_token: user.youtubeRefreshToken,
   });
-  // Auto-save refreshed token
   client.on('tokens', async (tokens) => {
     if (tokens.access_token) {
       await User.findByIdAndUpdate(user._id, { $set: { youtubeToken: tokens.access_token } });
-      console.log(`🔄 [YT] Refreshed token for ${user.email}`);
     }
   });
   return client;
@@ -41,18 +35,16 @@ const getGmailOAuth = (user) => {
   client.on('tokens', async (tokens) => {
     if (tokens.access_token) {
       await User.findByIdAndUpdate(user._id, { $set: { gmailToken: tokens.access_token } });
-      console.log(`🔄 [Gmail] Refreshed token for ${user.email}`);
     }
   });
   return client;
 };
 
-// ── AI reply generator ────────────────────────────────────────────────
 const generateAIReply = async (prompt) => {
   const res = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
-      model: 'meta-llama/llama-3.1-8b-instruct:free',
+      model: 'google/gemini-2.5-flash-lite-preview-09-2025',
       max_tokens: 100,
       messages: [{ role: 'user', content: prompt }],
     },
@@ -60,6 +52,8 @@ const generateAIReply = async (prompt) => {
       headers: {
         Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://synapsocial.vercel.app',
+        'X-Title': 'SynapSocial',
       },
       timeout: 15000,
     }
@@ -69,25 +63,34 @@ const generateAIReply = async (prompt) => {
 
 // ── YouTube Auto-Reply ────────────────────────────────────────────────
 const runYouTubeAutoReply = async () => {
-  // Find users who have: youtube connected + token + at least 1 automated video + permission ON
+  // ✅ FIX: Load ALL connected youtube users then filter in JS
+  // (dot-notation query on nested schema can be unreliable)
   const users = await User.find({
     'connectedPlatforms.youtube': true,
     youtubeToken: { $exists: true, $ne: null },
     youtubeRefreshToken: { $exists: true, $ne: null },
-    'permissions.youtubeReplyComments': true,
-    youtubeAutomatedVideos: { $exists: true, $not: { $size: 0 } },
   });
 
-  console.log(`[YT Auto-Reply] Found ${users.length} users with automation ON`);
+  const eligible = users.filter(u =>
+    u.permissions?.youtubeReplyComments === true &&
+    Array.isArray(u.youtubeAutomatedVideos) &&
+    u.youtubeAutomatedVideos.length > 0
+  );
 
-  for (const user of users) {
+  console.log(`[YT Auto-Reply] ${users.length} YT users total, ${eligible.length} with automation ON`);
+  if (eligible.length === 0) {
+    console.log('[YT] No users — either permission is OFF or no automated videos saved');
+    return;
+  }
+
+  for (const user of eligible) {
     try {
       const oauthClient = getYTOAuth(user);
       const youtube = google.youtube({ version: 'v3', auth: oauthClient });
 
       for (const videoId of user.youtubeAutomatedVideos) {
         try {
-          console.log(`[YT] Checking video ${videoId} for user ${user.email}`);
+          console.log(`[YT] Checking video ${videoId} for ${user.email}`);
 
           const commentsRes = await youtube.commentThreads.list({
             part: 'snippet',
@@ -97,78 +100,65 @@ const runYouTubeAutoReply = async () => {
           });
 
           const items = commentsRes.data.items || [];
-          // Only check comments from last 10 minutes
           const tenMinsAgo = Date.now() - 10 * 60 * 1000;
 
           for (const item of items) {
             const comment = item.snippet.topLevelComment.snippet;
             const commentTime = new Date(comment.publishedAt).getTime();
 
-            // Skip old comments
             if (commentTime < tenMinsAgo) continue;
-
-            // Skip if already has replies
             if (item.snippet.totalReplyCount > 0) continue;
+            if ((user.repliedYtCommentIds || []).includes(item.id)) continue;
 
-            // Skip if we already replied (stored in DB)
-            const alreadyReplied = (user.repliedYtCommentIds || []).includes(item.id);
-            if (alreadyReplied) continue;
+            console.log(`[YT] Replying to: "${comment.textDisplay.slice(0, 60)}"`);
 
-            console.log(`[YT] New comment found: "${comment.textDisplay.slice(0, 50)}"`);
-
-            // Generate AI reply
             const reply = await generateAIReply(
-              `Write a short friendly YouTube comment reply (1-2 sentences, 1 emoji at end, no hashtags) to this comment: "${comment.textDisplay}". Just the reply text only.`
+              `Write a short friendly YouTube comment reply (1-2 sentences, 1 emoji, no hashtags) to: "${comment.textDisplay}". Reply text only.`
             );
 
-            // Post the reply
             await youtube.comments.insert({
               part: 'snippet',
-              requestBody: {
-                snippet: {
-                  parentId: item.id,
-                  textOriginal: reply,
-                },
-              },
+              requestBody: { snippet: { parentId: item.id, textOriginal: reply } },
             });
 
-            // Mark as replied in DB so we never double-reply
             await User.findByIdAndUpdate(user._id, {
               $addToSet: { repliedYtCommentIds: item.id },
             });
 
-            console.log(`✅ [YT Auto-Reply] Replied to comment on video ${videoId}: "${reply}"`);
+            console.log(`✅ [YT] Replied: "${reply}"`);
             await new Promise((r) => setTimeout(r, 2000));
           }
         } catch (err) {
-          console.error(`❌ [YT] Video ${videoId} error: ${err.message}`);
+          console.error(`❌ [YT] Video ${videoId}: ${err.message}`);
         }
       }
     } catch (err) {
-      console.error(`❌ [YT Auto-Reply] User ${user.email}: ${err.message}`);
+      console.error(`❌ [YT] User ${user.email}: ${err.message}`);
     }
   }
 };
 
 // ── Gmail Auto-Reply ──────────────────────────────────────────────────
 const runGmailAutoReply = async () => {
-  // Find users who have: gmail connected + token + at least 1 contact + permission ON
   const users = await User.find({
     'connectedPlatforms.gmail': true,
     gmailToken: { $exists: true, $ne: null },
     gmailRefreshToken: { $exists: true, $ne: null },
-    'permissions.gmailAutoReply': true,
-    gmailAutoReplyContacts: { $exists: true, $not: { $size: 0 } },
   });
 
-  console.log(`[Gmail Auto-Reply] Found ${users.length} users with automation ON`);
+  const eligible = users.filter(u =>
+    u.permissions?.gmailAutoReply === true &&
+    Array.isArray(u.gmailAutoReplyContacts) &&
+    u.gmailAutoReplyContacts.length > 0
+  );
 
-  for (const user of users) {
+  console.log(`[Gmail Auto-Reply] ${users.length} Gmail users total, ${eligible.length} with automation ON`);
+
+  for (const user of eligible) {
     try {
       const oauthClient = getGmailOAuth(user);
       const gmail = google.gmail({ version: 'v1', auth: oauthClient });
 
-      // Get unread inbox emails
       const listRes = await gmail.users.messages.list({
         userId: 'me',
         maxResults: 10,
@@ -176,23 +166,22 @@ const runGmailAutoReply = async () => {
       });
 
       const messages = listRes.data.messages || [];
-      console.log(`[Gmail] User ${user.email}: ${messages.length} unread emails`);
+      console.log(`[Gmail] ${user.email}: ${messages.length} unread, contacts: ${user.gmailAutoReplyContacts}`);
 
       for (const msg of messages) {
         try {
-          // Get sender info
-          const detail = await gmail.users.messages.get({
+          // ✅ FIX: Get metadata first (no 404)
+          const meta = await gmail.users.messages.get({
             userId: 'me',
             id: msg.id,
             format: 'metadata',
             metadataHeaders: ['From', 'Subject'],
           });
 
-          const fromHeader = detail.data.payload.headers.find((h) => h.name === 'From')?.value || '';
+          const fromHeader = meta.data.payload.headers.find((h) => h.name === 'From')?.value || '';
           const fromEmail = fromHeader.match(/<(.+)>/)?.[1] || fromHeader.trim();
-          const subject = detail.data.payload.headers.find((h) => h.name === 'Subject')?.value || '';
+          const subject = meta.data.payload.headers.find((h) => h.name === 'Subject')?.value || '';
 
-          // Check if sender is in auto-reply contacts list
           const isAutoContact = user.gmailAutoReplyContacts.some(
             (c) =>
               fromEmail.toLowerCase().includes(c.toLowerCase()) ||
@@ -200,40 +189,46 @@ const runGmailAutoReply = async () => {
           );
 
           if (!isAutoContact) {
-            console.log(`[Gmail] Skipping ${fromEmail} — not in auto-reply contacts`);
+            console.log(`[Gmail] Skip ${fromEmail}`);
             continue;
           }
 
-          console.log(`[Gmail] Auto-replying to ${fromEmail} — Subject: ${subject}`);
+          console.log(`[Gmail] Auto-replying to ${fromEmail} — ${subject}`);
 
-          // Get full email body
-          const full = await gmail.users.messages.get({
-            userId: 'me',
-            id: msg.id,
-            format: 'full',
-          });
-
+          // ✅ FIX: Get full email separately with error handling
           let body = '';
-          const extractBody = (part) => {
-            if (part.mimeType === 'text/plain' && part.body?.data) {
-              body = Buffer.from(part.body.data, 'base64').toString('utf8');
-            } else if (part.parts) {
-              part.parts.forEach(extractBody);
-            }
-          };
-          extractBody(full.data.payload);
+          let threadId = meta.data.threadId;
+          try {
+            const full = await gmail.users.messages.get({
+              userId: 'me',
+              id: msg.id,
+              format: 'full',
+            });
+            threadId = full.data.threadId;
+            const extractBody = (part) => {
+              if (!part) return;
+              if (part.mimeType === 'text/plain' && part.body?.data) {
+                body = Buffer.from(part.body.data, 'base64').toString('utf8');
+              } else if (part.parts) {
+                part.parts.forEach(extractBody);
+              }
+            };
+            extractBody(full.data.payload);
+          } catch (bodyErr) {
+            console.log(`[Gmail] Couldn't get body (${bodyErr.message}), using snippet`);
+            body = meta.data.snippet || '';
+          }
 
-          // Generate AI reply
           const reply = await generateAIReply(
             `Write a short natural email reply.
 From: ${fromHeader}
 Subject: ${subject}
-Email body: ${body?.slice(0, 500)}
+Email: ${body?.slice(0, 500)}
 
-Rules: Write ONLY the reply body text. No greeting like "Dear...", no sign-off. Keep it concise and professional.`
+Write ONLY the reply body. No greeting, no sign-off. Keep it brief.`
           );
 
-          // Build raw email
+          // Send
           const emailLines = [
             `To: ${fromEmail}`,
             `Subject: Re: ${subject}`,
@@ -247,48 +242,46 @@ Rules: Write ONLY the reply body text. No greeting like "Dear...", no sign-off. 
             .replace(/\//g, '_')
             .replace(/=+$/, '');
 
-          // Send reply
           await gmail.users.messages.send({
             userId: 'me',
-            requestBody: { raw, threadId: full.data.threadId },
+            requestBody: { raw, threadId },
           });
 
-          // Mark as read so we don't reply again
+          // Mark as read
           await gmail.users.messages.modify({
             userId: 'me',
             id: msg.id,
             requestBody: { removeLabelIds: ['UNREAD'] },
           });
 
-          console.log(`✅ [Gmail Auto-Reply] Sent reply to ${fromEmail}`);
+          console.log(`✅ [Gmail] Replied to ${fromEmail}: "${reply.slice(0, 60)}"`);
           await new Promise((r) => setTimeout(r, 2000));
 
         } catch (err) {
-          console.error(`❌ [Gmail] Message error: ${err.message}`);
+          console.error(`❌ [Gmail] Msg ${msg.id}: ${err.message}`);
         }
       }
     } catch (err) {
-      console.error(`❌ [Gmail Auto-Reply] User ${user.email}: ${err.message}`);
+      console.error(`❌ [Gmail] User ${user.email}: ${err.message}`);
     }
   }
 };
 
 // ── Start cron ────────────────────────────────────────────────────────
 const startAutoReplyJobs = () => {
-  // Run immediately once on startup to verify it works
-  console.log('🤖 Running auto-reply jobs on startup...');
+  console.log('🤖 Running auto-reply on startup...');
   runYouTubeAutoReply().catch(console.error);
   runGmailAutoReply().catch(console.error);
 
-  // Then run every 5 minutes
-  cron.schedule('*/5 * * * *', async () => {
-    console.log(`🤖 [${new Date().toISOString()}] Running auto-reply cron...`);
+  // ✅ Every 1 minute for testing (change to */5 for production)
+  cron.schedule('* * * * *', async () => {
+    console.log(`🤖 [${new Date().toISOString()}] Cron tick...`);
     await runYouTubeAutoReply().catch(console.error);
     await runGmailAutoReply().catch(console.error);
     console.log('✅ Cron done');
   });
 
-  console.log('✅ Auto-reply cron started — runs every 5 mins');
+  console.log('✅ Auto-reply cron started — every 1 min (testing mode)');
 };
 
 module.exports = { startAutoReplyJobs };

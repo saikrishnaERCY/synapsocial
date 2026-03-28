@@ -680,8 +680,15 @@ function YTComments({ userId, autoReplyEnabled }) {
       if (!ok) return;
     } else if (automateChecked) {
       // ✅ Save video automation to DB
-      await axios.post(`${API_URL}/api/platforms/youtube/automate-video`, { userId, videoId: confirmPopup.videoId });
-      setAutomatedVideos(prev => [...new Set([...prev, confirmPopup.videoId])]);
+      try {
+        const automateRes = await axios.post(`${API_URL}/api/platforms/youtube/automate-video`, { userId, videoId: confirmPopup.videoId });
+        console.log('Automate video response:', automateRes.data);
+        setAutomatedVideos(prev => [...new Set([...prev, confirmPopup.videoId])]);
+        alert(`✅ Auto-reply enabled for video: ${confirmPopup.videoTitle?.slice(0,30)}`);
+      } catch(automateErr) {
+        console.error('Failed to save automation:', automateErr);
+        alert('❌ Failed to enable automation: ' + (automateErr.response?.data?.message || automateErr.message));
+      }
     }
 
     try {
