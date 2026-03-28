@@ -217,6 +217,20 @@ export default function Platforms() {
                         onClick={() => setLinkedinBotModal(true)}>🤖 Bot Settings (Auto-Apply + Comment Reply)</button>
                     )}
 
+                    {/* LinkedIn resume - REMOVED - now in Bot Settings */}
+                    {false && platform.id === 'linkedin' && permissions.autoApplyJobs && (
+                      <div style={{ background: '#1e1e2e', borderRadius: '8px', padding: '0.8rem', border: '1px dashed #7c3aed', marginTop: '0.3rem' }}>
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: '#a855f7', fontWeight: 600 }}>📄 Resume for Job Scanning</p>
+                        {resumeName && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.8rem', background: '#13131a', borderRadius: '6px', marginBottom: '0.5rem', fontSize: '0.8rem', color: '#ccc' }}><span>📎 {resumeName}</span><span style={{ color: '#00ff88' }}>✅</span></div>}
+                        <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) setResume(e.target.files[0]); }} />
+                        {resume && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.8rem', background: '#13131a', borderRadius: '6px', marginBottom: '0.4rem', fontSize: '0.8rem', color: '#ccc' }}><span>📎 {resume.name}</span><button style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer' }} onClick={() => setResume(null)}>✕</button></div>}
+                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                          <button style={{ padding: '0.5rem 0.8rem', background: '#2a2a3a', color: '#fff', border: '1px solid #3a3a4a', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }} onClick={() => fileRef.current.click()}>📂 Choose</button>
+                          {resume && <button style={{ padding: '0.5rem 0.8rem', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }} onClick={handleResumeUpload} disabled={uploading}>{uploading ? '⏳' : '✅ Submit'}</button>}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Instagram actions */}
                     {platform.id === 'instagram' && (
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem' }}>
@@ -253,7 +267,7 @@ export default function Platforms() {
         ))}
       </div>
 
-      {/* LinkedIn Bot Modal */}
+      {/* Instagram modals */}
       {linkedinBotModal && (
         <Modal onClose={() => setLinkedinBotModal(false)} title="🤖 LinkedIn Bot Settings" wide>
           <LinkedInBot userId={user.id} />
@@ -270,14 +284,15 @@ export default function Platforms() {
       {igModal === 'post' && <Modal onClose={() => setIgModal(null)} title="📸 Post to Instagram"><IGPost userId={user.id} /></Modal>}
       {igModal === 'comments' && <Modal onClose={() => setIgModal(null)} title="💬 Instagram Comments"><IGComments userId={user.id} /></Modal>}
 
-      {/* ✅ FIXED: pass autoReplyEnabled prop so YTComments knows the permission state */}
+      {/* YouTube modals */}
       {ytModal && (
         <Modal onClose={() => setYtModal(null)} title={ytModal === 'comments' ? '💬 YouTube Comments' : '⬆️ Upload Video'}>
-          {ytModal === 'comments' && <YTComments userId={user.id} autoReplyEnabled={permissions.youtubeReplyComments} />}
+          {ytModal === 'comments' && <YTComments userId={user.id} />}
           {ytModal === 'upload' && <YTUpload userId={user.id} />}
         </Modal>
       )}
 
+      {/* Gmail modals */}
       {gmailModal === 'inbox' && <Modal onClose={() => setGmailModal(null)} title="📧 Gmail Inbox" wide><GmailInbox userId={user.id} onCompose={() => setGmailModal('compose')} /></Modal>}
       {gmailModal === 'compose' && <Modal onClose={() => setGmailModal(null)} title="✏️ Compose Email"><GmailCompose userId={user.id} onClose={() => setGmailModal(null)} /></Modal>}
     </div>
@@ -310,7 +325,8 @@ function GmailInbox({ userId, onCompose }) {
   const [selected, setSelected] = useState(null);
   const [emailBody, setEmailBody] = useState(null);
   const [loadingBody, setLoadingBody] = useState(false);
-  const [aiReplyPopup, setAiReplyPopup] = useState(null);
+  // AI Reply popup state
+  const [aiReplyPopup, setAiReplyPopup] = useState(null); // { reply, from, fromEmail, subject, threadId, emailId }
   const [loadingReply, setLoadingReply] = useState(false);
   const [autoReplyChecked, setAutoReplyChecked] = useState(false);
   const [sending, setSending] = useState(false);
@@ -371,10 +387,12 @@ function GmailInbox({ userId, onCompose }) {
     if (!aiReplyPopup) return;
     setSending(true);
     try {
+      // If checkbox checked, save to auto-reply contacts
       if (autoReplyChecked) {
         await axios.post(`${API_URL}/api/gmail/auto-reply/add`, { userId, fromEmail: aiReplyPopup.fromEmail });
         setAutoContacts(p => [...new Set([...p, aiReplyPopup.fromEmail])]);
       } else {
+        // Remove from auto-reply if unchecked
         await axios.post(`${API_URL}/api/gmail/auto-reply/remove`, { userId, fromEmail: aiReplyPopup.fromEmail });
         setAutoContacts(p => p.filter(c => c !== aiReplyPopup.fromEmail));
       }
@@ -410,6 +428,7 @@ function GmailInbox({ userId, onCompose }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: selected && window.innerWidth > 600 ? '1fr 1.2fr' : '1fr', gap: '0.8rem' }}>
+        {/* Email list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '55vh', overflowY: 'auto' }}>
           {emails.length === 0 && <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>No emails found</p>}
           {emails.map(email => (
@@ -428,6 +447,7 @@ function GmailInbox({ userId, onCompose }) {
           ))}
         </div>
 
+        {/* Email detail */}
         {selected && (
           <div style={{ background: '#0d0d14', border: '1px solid #2a2a3a', borderRadius: '10px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '55vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -451,6 +471,7 @@ function GmailInbox({ userId, onCompose }) {
         )}
       </div>
 
+      {/* ── AI Reply Popup ── */}
       {aiReplyPopup && (
         <div style={{ position: 'fixed', inset: 0, background: '#000000cc', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ background: '#13131a', border: '1px solid #7c3aed44', borderRadius: '20px', padding: '1.5rem', maxWidth: '500px', width: '100%', boxSizing: 'border-box', boxShadow: '0 0 40px #7c3aed22' }}>
@@ -459,11 +480,15 @@ function GmailInbox({ userId, onCompose }) {
               <button onClick={() => setAiReplyPopup(null)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
             </div>
             <p style={{ margin: '0 0 0.8rem', fontSize: '0.78rem', color: '#888' }}>Replying to: <span style={{ color: '#ccc' }}>{aiReplyPopup.from}</span></p>
+
+            {/* Editable reply */}
             <textarea
               style={{ width: '100%', padding: '0.9rem', background: '#1e1e2e', border: '1px solid #7c3aed44', borderRadius: '10px', color: '#fff', fontSize: '0.85rem', outline: 'none', resize: 'vertical', minHeight: '120px', boxSizing: 'border-box', fontFamily: 'sans-serif', lineHeight: 1.6, marginBottom: '1rem' }}
               value={aiReplyPopup.editedReply}
               onChange={e => setAiReplyPopup(p => ({ ...p, editedReply: e.target.value }))}
             />
+
+            {/* Auto-reply checkbox */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem', padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '10px', marginBottom: '1rem', cursor: 'pointer' }}
               onClick={() => setAutoReplyChecked(p => !p)}>
               <div style={{ width: '18px', height: '18px', borderRadius: '4px', border: `2px solid ${autoReplyChecked ? '#7c3aed' : '#444'}`, background: autoReplyChecked ? '#7c3aed' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1px' }}>
@@ -476,6 +501,7 @@ function GmailInbox({ userId, onCompose }) {
                 </p>
               </div>
             </div>
+
             <div style={{ display: 'flex', gap: '0.8rem' }}>
               <button onClick={sendAiReply} disabled={sending}
                 style={{ flex: 1, padding: '0.8rem', background: sending ? '#333' : '#ea4335', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem' }}>
@@ -602,6 +628,7 @@ function IGComments({ userId }) {
 
 // ─── YouTube Comments ─────────────────────────────────────────
 function YTComments({ userId, autoReplyEnabled }) {
+  const [comments, setComments] = useState([]);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedVideo, setExpandedVideo] = useState(null);
@@ -622,6 +649,7 @@ function YTComments({ userId, autoReplyEnabled }) {
     axios.get(`${API_URL}/api/platforms/youtube/comments/${userId}`).then(({ data }) => {
       const now = Date.now();
       const filtered = (data.comments || []).filter(c => now - new Date(c.published).getTime() < 24 * 60 * 60 * 1000);
+      setComments(filtered);
       const videoMap = {};
       filtered.forEach(c => {
         if (!videoMap[c.videoId]) videoMap[c.videoId] = { videoId: c.videoId, videoTitle: c.videoTitle, comments: [] };
@@ -789,7 +817,7 @@ function YTComments({ userId, autoReplyEnabled }) {
   );
 }
 
-// ─── YouTube Upload ───────────────────────────────────────────
+
 function YTUpload({ userId }) {
   const [form, setForm] = useState({ title: '', description: '', tags: '' });
   const [videoFile, setVideoFile] = useState(null);
@@ -826,7 +854,6 @@ function YTUpload({ userId }) {
   );
 }
 
-// ─── LinkedIn Bot ─────────────────────────────────────────────
 function LinkedInBot({ userId }) {
   const [creds, setCreds] = useState({ email: '', password: '' });
   const [hasCredentials, setHasCredentials] = useState(false);
@@ -839,16 +866,25 @@ function LinkedInBot({ userId }) {
   const [result, setResult] = useState(null);
   const [appliedJobs, setAppliedJobs] = useState([]);
   const [tab, setTab] = useState('setup');
+  // Comments tab state
+  const [posts, setPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [postComments, setPostComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [replyLoading, setReplyLoading] = useState({});
+  const [aiReplies, setAiReplies] = useState({});
   const fileRef = useRef();
 
   useEffect(() => {
+    // Load credentials status + resume name + applied jobs
     axios.get(`${API_URL}/api/linkedin-bot/credentials-status/${userId}`)
-      .then(({ data }) => setHasCredentials(data.hasCredentials)).catch(console.error);
+      .then(({ data }) => {
+        setHasCredentials(data.hasCredentials);
+        if (data.resumeName) setResumeName(data.resumeName);
+      }).catch(console.error);
     axios.get(`${API_URL}/api/linkedin-bot/applied-jobs/${userId}`)
       .then(({ data }) => setAppliedJobs(data.jobs || [])).catch(console.error);
-    // ✅ FIXED: fetch resume name from server so it shows after page reload
-    axios.get(`${API_URL}/api/platforms/status/${userId}`)
-      .then(({ data }) => { if (data.resumeName) setResumeName(data.resumeName); }).catch(console.error);
   }, [userId]);
 
   const saveCredentials = async () => {
@@ -863,7 +899,7 @@ function LinkedInBot({ userId }) {
   };
 
   const testLogin = async () => {
-    setLoading(true); setResult('⏳ Testing login...');
+    setLoading(true); setResult('⏳ Connecting to LinkedIn via Cloud Chrome...');
     try {
       const { data } = await axios.post(`${API_URL}/api/linkedin-bot/test-login`, { userId });
       setResult('✅ ' + data.message);
@@ -879,13 +915,13 @@ function LinkedInBot({ userId }) {
       const { data } = await axios.post(`${API_URL}/api/linkedin-bot/upload-resume`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
       setResumeName(data.filename); setResume(null);
       setResult('✅ Resume uploaded!');
-    } catch (err) { setResult('❌ Resume upload failed'); }
+    } catch { setResult('❌ Resume upload failed'); }
   };
 
   const autoApplyJobs = async () => {
-    if (!jobKeywords) return alert('Enter job keywords!');
+    if (!jobKeywords.trim()) return alert('Enter job keywords!');
     if (!resumeName) return alert('Upload your resume first!');
-    setLoading(true); setResult('⏳ Searching and applying...');
+    setLoading(true); setResult('⏳ Opening LinkedIn, searching jobs...');
     try {
       const { data } = await axios.post(`${API_URL}/api/linkedin-bot/auto-apply-jobs`, { userId, keywords: jobKeywords, location: jobLocation, maxJobs });
       setResult('✅ ' + data.message);
@@ -894,54 +930,99 @@ function LinkedInBot({ userId }) {
     setLoading(false);
   };
 
-  const autoReplyComments = async () => {
-    setLoading(true); setResult('⏳ Checking comments...');
+  const loadMyPosts = async () => {
+    setPostsLoading(true); setPosts([]); setSelectedPost(null); setPostComments([]);
     try {
-      const { data } = await axios.post(`${API_URL}/api/linkedin-bot/auto-reply-comments`, { userId });
-      setResult('✅ ' + data.message);
+      const { data } = await axios.get(`${API_URL}/api/linkedin-bot/my-posts/${userId}`);
+      setPosts(data.posts || []);
+      if (!data.posts?.length) setResult('No posts found. Make sure you have LinkedIn posts.');
     } catch (err) { setResult('❌ ' + (err.response?.data?.message || err.message)); }
-    setLoading(false);
+    setPostsLoading(false);
+  };
+
+  const loadPostComments = async (post) => {
+    setSelectedPost(post); setPostComments([]); setAiReplies({});
+    setCommentsLoading(true);
+    try {
+      const { data } = await axios.post(`${API_URL}/api/linkedin-bot/post-comments`, { userId, postUrl: post.postUrl });
+      setPostComments(data.comments || []);
+    } catch (err) { setResult('❌ ' + (err.response?.data?.message || err.message)); }
+    setCommentsLoading(false);
+  };
+
+  const getAiReply = async (comment) => {
+    setReplyLoading(p => ({ ...p, [comment.id]: true }));
+    try {
+      const { data } = await axios.post(`${API_URL}/api/linkedin-bot/ai-reply`, { comment: comment.text });
+      setAiReplies(p => ({ ...p, [comment.id]: data.reply }));
+    } catch { setResult('❌ AI reply failed'); }
+    setReplyLoading(p => ({ ...p, [comment.id]: false }));
+  };
+
+  const sendReply = async (comment) => {
+    const reply = aiReplies[comment.id];
+    if (!reply) return;
+    try {
+      await axios.post(`${API_URL}/api/linkedin-bot/reply-comment`, { userId, postUrl: selectedPost.postUrl, commentIndex: comment.index, reply });
+      setPostComments(p => p.map(c => c.id === comment.id ? { ...c, replied: true } : c));
+      setAiReplies(p => { const n = { ...p }; delete n[comment.id]; return n; });
+    } catch (err) { setResult('❌ ' + (err.response?.data?.message || err.message)); }
   };
 
   const tabs = [{ id: 'setup', label: '⚙️ Setup' }, { id: 'jobs', label: '💼 Auto-Apply' }, { id: 'comments', label: '💬 Comments' }];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {/* Tabs */}
       <div style={{ display: 'flex', gap: '0.4rem', borderBottom: '1px solid #2a2a3a', paddingBottom: '0.5rem' }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => { setTab(t.id); setResult(null); }}
             style={{ padding: '0.4rem 0.9rem', background: tab === t.id ? '#0077b5' : 'transparent', color: tab === t.id ? '#fff' : '#888', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: tab === t.id ? 700 : 400 }}>
             {t.label}
           </button>
         ))}
       </div>
 
+      {/* ── Setup Tab ── */}
       {tab === 'setup' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-          <div style={{ background: '#1e1e2e', border: '1px solid #0077b533', borderRadius: '10px', padding: '0.8rem', fontSize: '0.78rem', color: '#888' }}>
-            🔒 Credentials are <strong style={{ color: '#4a9fd4' }}>AES-256 encrypted</strong> in MongoDB. Never stored in plain text.
+          <div style={{ background: '#1e1e2e', border: '1px solid #0077b533', borderRadius: '10px', padding: '0.8rem', fontSize: '0.78rem', color: '#888', lineHeight: 1.6 }}>
+            🔒 Credentials are <strong style={{ color: '#4a9fd4' }}>AES-256 encrypted</strong> before saving. Never stored in plain text.
+            <br />🌐 Automation runs via <strong style={{ color: '#4a9fd4' }}>Browserless.io</strong> cloud Chrome — works even on Render.
           </div>
+
           {hasCredentials
-            ? <div style={{ background: '#00ff8811', border: '1px solid #00ff8833', borderRadius: '8px', padding: '0.7rem', fontSize: '0.82rem', color: '#00ff88' }}>✅ Credentials saved! Bot ready.</div>
+            ? <div style={{ background: '#00ff8811', border: '1px solid #00ff8833', borderRadius: '8px', padding: '0.7rem', fontSize: '0.82rem', color: '#00ff88' }}>✅ Credentials saved! Bot is ready to use.</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 <input style={inpStyle} type="email" placeholder="LinkedIn Email" value={creds.email} onChange={e => setCreds(p => ({ ...p, email: e.target.value }))} />
                 <input style={inpStyle} type="password" placeholder="LinkedIn Password" value={creds.password} onChange={e => setCreds(p => ({ ...p, password: e.target.value }))} />
                 <button onClick={saveCredentials} disabled={loading} style={{ padding: '0.7rem', background: '#0077b5', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
-                  {loading ? '⏳' : '🔒 Save Securely'}
+                  {loading ? '⏳ Saving...' : '🔒 Save Credentials Securely'}
                 </button>
               </div>
           }
-          {hasCredentials && <button onClick={testLogin} disabled={loading} style={{ padding: '0.6rem', background: '#1e1e2e', color: '#4a9fd4', border: '1px solid #0077b544', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem' }}>{loading ? '⏳' : '🧪 Test Login'}</button>}
+
+          {hasCredentials && (
+            <button onClick={testLogin} disabled={loading}
+              style={{ padding: '0.6rem', background: '#1e1e2e', color: '#4a9fd4', border: '1px solid #0077b544', borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem' }}>
+              {loading ? '⏳ Connecting...' : '🧪 Test Login'}
+            </button>
+          )}
         </div>
       )}
 
+      {/* ── Auto-Apply Tab ── */}
       {tab === 'jobs' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
           {!hasCredentials && <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.6rem', fontSize: '0.78rem', color: '#ff8888' }}>⚠️ Set up credentials in Setup tab first!</div>}
 
-          <div style={{ background: '#1e1e2e', border: '1px dashed #7c3aed44', borderRadius: '10px', padding: '0.8rem' }}>
-            <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#a855f7', fontWeight: 600 }}>📄 Resume (required for auto-apply)</p>
-            {resumeName && <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#00ff88' }}>✅ {resumeName}</p>}
+          {/* Resume section */}
+          <div style={{ background: '#1e1e2e', border: '1px dashed #7c3aed55', borderRadius: '10px', padding: '0.8rem' }}>
+            <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#a855f7', fontWeight: 600 }}>📄 Resume <span style={{ color: '#ff8888', fontSize: '0.72rem' }}>(required)</span></p>
+            {resumeName
+              ? <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#00ff88' }}>✅ {resumeName}</p>
+              : <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', color: '#888' }}>No resume uploaded yet</p>
+            }
             <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }} onChange={e => setResume(e.target.files[0])} />
             {resume && <p style={{ margin: '0 0 0.4rem', fontSize: '0.78rem', color: '#ccc' }}>📎 {resume.name}</p>}
             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -950,24 +1031,25 @@ function LinkedInBot({ userId }) {
             </div>
           </div>
 
-          <input style={inpStyle} placeholder="Job keywords (e.g. React Developer, Full Stack)" value={jobKeywords} onChange={e => setJobKeywords(e.target.value)} />
+          <input style={inpStyle} placeholder="Job keywords (e.g. React Developer, Full Stack Intern)" value={jobKeywords} onChange={e => setJobKeywords(e.target.value)} />
           <input style={inpStyle} placeholder="Location (e.g. India, Mumbai, Remote)" value={jobLocation} onChange={e => setJobLocation(e.target.value)} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-            <label style={{ fontSize: '0.82rem', color: '#888' }}>Max jobs:</label>
+            <label style={{ fontSize: '0.82rem', color: '#888' }}>Max jobs to apply:</label>
             <input type="number" min={1} max={20} value={maxJobs} onChange={e => setMaxJobs(Number(e.target.value))} style={{ ...inpStyle, width: '80px' }} />
           </div>
           <button onClick={autoApplyJobs} disabled={loading || !hasCredentials}
             style={{ padding: '0.8rem', background: loading || !hasCredentials ? '#333' : '#0077b5', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
-            {loading ? '⏳ Applying...' : '🚀 Auto-Apply Now'}
+            {loading ? '⏳ Applying to jobs...' : '🚀 Auto-Apply Now'}
           </button>
+
           {appliedJobs.length > 0 && (
             <div>
-              <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#888' }}>📋 Applied ({appliedJobs.length})</p>
+              <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#888', fontWeight: 600 }}>📋 Applied History ({appliedJobs.length})</p>
               <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                 {appliedJobs.slice(0, 20).map((job, i) => (
-                  <div key={i} style={{ background: '#1e1e2e', borderRadius: '6px', padding: '0.5rem 0.8rem', fontSize: '0.78rem' }}>
+                  <div key={i} style={{ background: '#1e1e2e', borderRadius: '6px', padding: '0.5rem 0.8rem', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#fff', fontWeight: 600 }}>{job.title}</span>
-                    <span style={{ color: '#555', marginLeft: '0.5rem' }}>@ {job.company}</span>
+                    <span style={{ color: '#555' }}>@ {job.company}</span>
                   </div>
                 ))}
               </div>
@@ -976,21 +1058,81 @@ function LinkedInBot({ userId }) {
         </div>
       )}
 
+      {/* ── Comments Tab ── */}
       {tab === 'comments' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
           {!hasCredentials && <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.6rem', fontSize: '0.78rem', color: '#ff8888' }}>⚠️ Set up credentials in Setup tab first!</div>}
-          <div style={{ background: '#1e1e2e', borderRadius: '8px', padding: '0.8rem', fontSize: '0.78rem', color: '#888', lineHeight: 1.6 }}>
-            💬 Checks LinkedIn notifications for new comments and auto-replies with AI.
-          </div>
-          <button onClick={autoReplyComments} disabled={loading || !hasCredentials}
-            style={{ padding: '0.8rem', background: loading || !hasCredentials ? '#333' : '#0077b5', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
-            {loading ? '⏳ Replying...' : '💬 Auto-Reply Comments Now'}
-          </button>
+
+          {!selectedPost ? (
+            <>
+              <button onClick={loadMyPosts} disabled={postsLoading || !hasCredentials}
+                style={{ padding: '0.8rem', background: postsLoading || !hasCredentials ? '#333' : '#0077b5', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>
+                {postsLoading ? '⏳ Loading posts...' : '📋 Load My LinkedIn Posts'}
+              </button>
+
+              {posts.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '55vh', overflowY: 'auto' }}>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#888' }}>Click a post to see its comments:</p>
+                  {posts.map(post => (
+                    <div key={post.id} onClick={() => loadPostComments(post)}
+                      style={{ background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '10px', padding: '0.8rem 1rem', cursor: 'pointer', transition: 'border-color 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = '#0077b5'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2a3a'}>
+                      <p style={{ margin: '0 0 0.3rem', fontSize: '0.85rem', color: '#fff', fontWeight: 500 }}>{post.text.slice(0, 120)}{post.text.length > 120 ? '...' : ''}</p>
+                      <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: '#666' }}>
+                        <span>💬 {post.commentsCount} comments</span>
+                        <span>🕐 {post.time}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <button onClick={() => { setSelectedPost(null); setPostComments([]); }}
+                  style={{ padding: '0.3rem 0.7rem', background: '#2a2a3a', color: '#888', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}>← Back</button>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: '#ccc', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedPost.text.slice(0, 60)}...</p>
+              </div>
+
+              {commentsLoading && <p style={{ color: '#888', textAlign: 'center', padding: '1rem' }}>⏳ Loading comments...</p>}
+
+              {!commentsLoading && postComments.length === 0 && (
+                <p style={{ color: '#888', textAlign: 'center', padding: '1rem' }}>No comments found on this post.</p>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxHeight: '50vh', overflowY: 'auto' }}>
+                {postComments.map(comment => (
+                  <div key={comment.id} style={{ background: '#1e1e2e', borderRadius: '10px', padding: '0.8rem', border: '1px solid #2a2a3a' }}>
+                    <p style={{ margin: '0 0 0.2rem', fontWeight: 600, fontSize: '0.82rem', color: '#ccc' }}>👤 {comment.author} <span style={{ color: '#555', fontWeight: 400, fontSize: '0.7rem' }}>· {comment.time}</span></p>
+                    <p style={{ margin: '0 0 0.6rem', color: '#aaa', fontSize: '0.85rem', fontStyle: 'italic' }}>"{comment.text}"</p>
+
+                    {comment.replied
+                      ? <span style={{ fontSize: '0.72rem', background: '#00ff8822', color: '#00ff88', padding: '0.2rem 0.6rem', borderRadius: '10px' }}>✅ Replied</span>
+                      : aiReplies[comment.id]
+                        ? <div>
+                            <div style={{ background: '#13131a', borderRadius: '8px', padding: '0.6rem 0.8rem', marginBottom: '0.5rem', fontSize: '0.82rem', color: '#ccc', fontStyle: 'italic' }}>"{aiReplies[comment.id]}"</div>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button onClick={() => sendReply(comment)} style={{ padding: '0.4rem 0.9rem', background: '#0077b5', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>📤 Send</button>
+                              <button onClick={() => setAiReplies(p => { const n = { ...p }; delete n[comment.id]; return n; })} style={{ padding: '0.4rem 0.7rem', background: 'transparent', color: '#888', border: '1px solid #2a2a3a', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}>↩ Redo</button>
+                            </div>
+                          </div>
+                        : <button disabled={replyLoading[comment.id]} onClick={() => getAiReply(comment)}
+                            style={{ padding: '0.35rem 0.9rem', background: '#0077b522', color: '#4a9fd4', border: '1px solid #0077b544', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>
+                            {replyLoading[comment.id] ? '⏳' : '🧠 AI Reply'}
+                          </button>
+                    }
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {result && (
-        <div style={{ padding: '0.7rem 1rem', background: result.startsWith('✅') ? '#00ff8811' : '#ff440011', border: `1px solid ${result.startsWith('✅') ? '#00ff8833' : '#ff444433'}`, borderRadius: '8px', fontSize: '0.82rem', color: result.startsWith('✅') ? '#00ff88' : '#ff8888' }}>
+        <div style={{ padding: '0.7rem 1rem', background: result.startsWith('✅') ? '#00ff8811' : result.startsWith('⏳') ? '#7c3aed11' : '#ff440011', border: `1px solid ${result.startsWith('✅') ? '#00ff8833' : result.startsWith('⏳') ? '#7c3aed33' : '#ff444433'}`, borderRadius: '8px', fontSize: '0.82rem', color: result.startsWith('✅') ? '#00ff88' : result.startsWith('⏳') ? '#a855f7' : '#ff8888', wordBreak: 'break-word' }}>
           {result}
         </div>
       )}
