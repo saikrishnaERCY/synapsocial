@@ -75,10 +75,10 @@ router.post('/automate-video', async (req, res) => {
     const { userId, videoId } = req.body;
     if (!userId || !videoId) return res.status(400).json({ message: 'userId and videoId required' });
 
-    await User.findByIdAndUpdate(userId, {
-      $addToSet: { youtubeAutomatedVideos: videoId },
-    });
+    const update = { $addToSet: { youtubeAutomatedVideos: videoId } };
+    if (context) update.$set = { [`youtubeVideoContexts.${videoId}`]: context };
 
+    await User.findByIdAndUpdate(userId, update);
     res.json({ message: `✅ Auto-reply enabled for video ${videoId}` });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -102,7 +102,7 @@ router.post('/automate-video/remove', async (req, res) => {
 router.get('/automated-videos/:userId', async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
-    res.json({ automatedVideos: user?.youtubeAutomatedVideos || [] });
+    res.json({ automatedVideos: user?.youtubeAutomatedVideos || [], videoContexts: user?.youtubeVideoContexts || {} });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -163,8 +163,10 @@ router.get('/comments/:userId', async (req, res) => {
 // AI reply suggestion
 router.post('/comment/ai-reply', async (req, res) => {
   try {
-    const { comment, videoTitle } = req.body;
+    const { comment, videoTitle, context } = req.body;
     if (!comment) return res.status(400).json({ message: 'comment is required' });
+
+    const contextHint = context ? `\nBehavior guide: ${context}` : '';
 
     const aiRes = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
@@ -173,7 +175,7 @@ router.post('/comment/ai-reply', async (req, res) => {
         max_tokens: 80,
         messages: [{
           role: 'user',
-          content: `Write a short friendly YouTube comment reply (1-2 sentences, 1 emoji) to: "${comment}". Reply text only, nothing else.`,
+          content: `Write a short YouTube comment reply (1-2 sentences, 1 emoji) to: "${comment}". Video: "${videoTitle}".${contextHint} Reply text only.`,
         }],
       },
       {

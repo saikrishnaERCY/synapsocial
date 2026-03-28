@@ -12,7 +12,9 @@ const crypto = require('crypto');
 puppeteer.use(StealthPlugin());
 
 // ── Encrypt / Decrypt credentials ────────────────────────────────────
-const ENCRYPT_KEY = (process.env.ENCRYPT_SECRET || 'synapsocial-secret-32chars!!!!!').slice(0, 32);
+// ✅ FIX: pad or truncate to exactly 32 bytes
+const rawKey = process.env.ENCRYPT_SECRET || 'synapsocial-secret-key-for-aes256';
+const ENCRYPT_KEY = rawKey.padEnd(32, '0').slice(0, 32);
 const IV_LENGTH = 16;
 
 const encrypt = (text) => {
@@ -350,7 +352,7 @@ const generateLinkedInReply = async (comment) => {
     const res = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
-        model: 'meta-llama/llama-3.1-8b-instruct:free',
+        model: 'google/gemini-2.5-flash-lite-preview-09-2025',
         max_tokens: 80,
         messages: [{
           role: 'user',
@@ -370,6 +372,30 @@ router.get('/applied-jobs/:userId', async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
     res.json({ jobs: user?.appliedJobs || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Upload Resume for auto-apply ─────────────────────────────────────
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const uploadResume = multer({ dest: 'uploads/resumes/', limits: { fileSize: 10 * 1024 * 1024 } });
+
+router.post('/upload-resume', uploadResume.single('resume'), async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+    await User.findByIdAndUpdate(userId, {
+      $set: {
+        resumePath: req.file.path,
+        resumeName: req.file.originalname,
+      }
+    });
+
+    res.json({ message: '✅ Resume uploaded!', filename: req.file.originalname });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

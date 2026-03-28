@@ -20,6 +20,7 @@ appliedJobs: [{ title: String, company: String, appliedAt: Date }],
   youtubeChannel: { id: String, name: String },
   youtubeAutomatedVideos: [String],
 repliedYtCommentIds: [String],
+youtubeVideoContexts: { type: Map, of: String }, // context per video
 
   // Instagram
   instagramToken: String,
