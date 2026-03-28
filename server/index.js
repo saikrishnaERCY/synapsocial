@@ -7,9 +7,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const session = require('express-session');
-const { startYoutubeAutoReplyJob } = require('./jobs/youtubeAutoReply');
 const passport = require('./config/passport');
-const { startAutoReplyJobs } = require('./jobs/autoReplyJob');
 
 const app = express();
 
@@ -27,7 +25,6 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
-// ✅ FIXED: session works in both local + production
 const isProduction = process.env.NODE_ENV === 'production';
 app.use(session({
   secret: process.env.JWT_SECRET || 'synapsocial_secret_fallback',
@@ -55,19 +52,22 @@ app.use('/api/platforms/youtube', require('./routes/youtube'));
 app.use('/api/gmail', require('./routes/gmail'));
 app.use('/api/linkedin-bot', require('./routes/linkedin-bot'));
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'SynapSocial API is live 🚀' });
-});
+// Health check + keep-alive
+app.get('/health', (req, res) => res.json({ status: 'alive', time: new Date().toISOString(), uptime: `${Math.floor(process.uptime() / 60)} mins` }));
+app.get('/', (req, res) => res.json({ app: '🧠 SynapSocial API', status: '✅ Running', time: new Date().toISOString() }));
 
+// ✅ ALL jobs start INSIDE .then() so DB is 100% connected first
 mongoose.connect(process.env.MONGO_URI).then(() => {
   console.log('✅ MongoDB connected');
-  startYoutubeAutoReplyJob();
-});
-startAutoReplyJobs();
 
-console.log("OPENROUTER KEY:", process.env.OPENROUTER_API_KEY?.slice(0, 20) + '...');
-console.log("SERP KEY:", process.env.SERP_API_KEY?.slice(0, 10) + '...');
+  // Single unified cron job - runs every 5 mins
+  const { startAutoReplyJobs } = require('./jobs/autoReplyJob');
+  startAutoReplyJobs();
+
+}).catch(err => {
+  console.error('❌ MongoDB connection failed:', err.message);
+  process.exit(1);
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
