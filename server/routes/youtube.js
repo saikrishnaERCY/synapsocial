@@ -69,10 +69,10 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-// ✅ NEW: Save automated video (enable auto-reply for this video)
+// ✅ FIXED: destructure `context` from req.body (was missing — caused ReferenceError)
 router.post('/automate-video', async (req, res) => {
   try {
-    const { userId, videoId } = req.body;
+    const { userId, videoId, context } = req.body;
     if (!userId || !videoId) return res.status(400).json({ message: 'userId and videoId required' });
 
     const update = { $addToSet: { youtubeAutomatedVideos: videoId } };
@@ -85,7 +85,7 @@ router.post('/automate-video', async (req, res) => {
   }
 });
 
-// ✅ NEW: Remove automated video (disable auto-reply for this video)
+// Remove automated video (disable auto-reply for this video)
 router.post('/automate-video/remove', async (req, res) => {
   try {
     const { userId, videoId } = req.body;
@@ -98,7 +98,7 @@ router.post('/automate-video/remove', async (req, res) => {
   }
 });
 
-// ✅ NEW: Get automated videos for user
+// Get automated videos for user
 router.get('/automated-videos/:userId', async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
@@ -145,7 +145,6 @@ router.get('/comments/:userId', async (req, res) => {
             likes: c.snippet.topLevelComment.snippet.likeCount,
             published: c.snippet.topLevelComment.snippet.publishedAt,
             replied: c.snippet.totalReplyCount > 0,
-            // ✅ Tell frontend if this video is automated
             isAutomated: (user.youtubeAutomatedVideos || []).includes(video.id.videoId),
           }));
         allComments = [...allComments, ...comments];

@@ -217,20 +217,6 @@ export default function Platforms() {
                         onClick={() => setLinkedinBotModal(true)}>🤖 Bot Settings (Auto-Apply + Comment Reply)</button>
                     )}
 
-                    {/* LinkedIn resume - REMOVED - now in Bot Settings */}
-                    {false && platform.id === 'linkedin' && permissions.autoApplyJobs && (
-                      <div style={{ background: '#1e1e2e', borderRadius: '8px', padding: '0.8rem', border: '1px dashed #7c3aed', marginTop: '0.3rem' }}>
-                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: '#a855f7', fontWeight: 600 }}>📄 Resume for Job Scanning</p>
-                        {resumeName && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0.8rem', background: '#13131a', borderRadius: '6px', marginBottom: '0.5rem', fontSize: '0.8rem', color: '#ccc' }}><span>📎 {resumeName}</span><span style={{ color: '#00ff88' }}>✅</span></div>}
-                        <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) setResume(e.target.files[0]); }} />
-                        {resume && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.8rem', background: '#13131a', borderRadius: '6px', marginBottom: '0.4rem', fontSize: '0.8rem', color: '#ccc' }}><span>📎 {resume.name}</span><button style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer' }} onClick={() => setResume(null)}>✕</button></div>}
-                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                          <button style={{ padding: '0.5rem 0.8rem', background: '#2a2a3a', color: '#fff', border: '1px solid #3a3a4a', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }} onClick={() => fileRef.current.click()}>📂 Choose</button>
-                          {resume && <button style={{ padding: '0.5rem 0.8rem', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }} onClick={handleResumeUpload} disabled={uploading}>{uploading ? '⏳' : '✅ Submit'}</button>}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Instagram actions */}
                     {platform.id === 'instagram' && (
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem' }}>
@@ -267,7 +253,7 @@ export default function Platforms() {
         ))}
       </div>
 
-      {/* Instagram modals */}
+      {/* LinkedIn Bot Modal */}
       {linkedinBotModal && (
         <Modal onClose={() => setLinkedinBotModal(false)} title="🤖 LinkedIn Bot Settings" wide>
           <LinkedInBot userId={user.id} />
@@ -284,15 +270,14 @@ export default function Platforms() {
       {igModal === 'post' && <Modal onClose={() => setIgModal(null)} title="📸 Post to Instagram"><IGPost userId={user.id} /></Modal>}
       {igModal === 'comments' && <Modal onClose={() => setIgModal(null)} title="💬 Instagram Comments"><IGComments userId={user.id} /></Modal>}
 
-      {/* YouTube modals */}
+      {/* ✅ FIXED: pass autoReplyEnabled prop so YTComments knows the permission state */}
       {ytModal && (
         <Modal onClose={() => setYtModal(null)} title={ytModal === 'comments' ? '💬 YouTube Comments' : '⬆️ Upload Video'}>
-          {ytModal === 'comments' && <YTComments userId={user.id} />}
+          {ytModal === 'comments' && <YTComments userId={user.id} autoReplyEnabled={permissions.youtubeReplyComments} />}
           {ytModal === 'upload' && <YTUpload userId={user.id} />}
         </Modal>
       )}
 
-      {/* Gmail modals */}
       {gmailModal === 'inbox' && <Modal onClose={() => setGmailModal(null)} title="📧 Gmail Inbox" wide><GmailInbox userId={user.id} onCompose={() => setGmailModal('compose')} /></Modal>}
       {gmailModal === 'compose' && <Modal onClose={() => setGmailModal(null)} title="✏️ Compose Email"><GmailCompose userId={user.id} onClose={() => setGmailModal(null)} /></Modal>}
     </div>
@@ -325,8 +310,7 @@ function GmailInbox({ userId, onCompose }) {
   const [selected, setSelected] = useState(null);
   const [emailBody, setEmailBody] = useState(null);
   const [loadingBody, setLoadingBody] = useState(false);
-  // AI Reply popup state
-  const [aiReplyPopup, setAiReplyPopup] = useState(null); // { reply, from, fromEmail, subject, threadId, emailId }
+  const [aiReplyPopup, setAiReplyPopup] = useState(null);
   const [loadingReply, setLoadingReply] = useState(false);
   const [autoReplyChecked, setAutoReplyChecked] = useState(false);
   const [sending, setSending] = useState(false);
@@ -387,12 +371,10 @@ function GmailInbox({ userId, onCompose }) {
     if (!aiReplyPopup) return;
     setSending(true);
     try {
-      // If checkbox checked, save to auto-reply contacts
       if (autoReplyChecked) {
         await axios.post(`${API_URL}/api/gmail/auto-reply/add`, { userId, fromEmail: aiReplyPopup.fromEmail });
         setAutoContacts(p => [...new Set([...p, aiReplyPopup.fromEmail])]);
       } else {
-        // Remove from auto-reply if unchecked
         await axios.post(`${API_URL}/api/gmail/auto-reply/remove`, { userId, fromEmail: aiReplyPopup.fromEmail });
         setAutoContacts(p => p.filter(c => c !== aiReplyPopup.fromEmail));
       }
@@ -428,7 +410,6 @@ function GmailInbox({ userId, onCompose }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: selected && window.innerWidth > 600 ? '1fr 1.2fr' : '1fr', gap: '0.8rem' }}>
-        {/* Email list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '55vh', overflowY: 'auto' }}>
           {emails.length === 0 && <p style={{ color: '#888', textAlign: 'center', padding: '2rem' }}>No emails found</p>}
           {emails.map(email => (
@@ -447,7 +428,6 @@ function GmailInbox({ userId, onCompose }) {
           ))}
         </div>
 
-        {/* Email detail */}
         {selected && (
           <div style={{ background: '#0d0d14', border: '1px solid #2a2a3a', borderRadius: '10px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '55vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -471,7 +451,6 @@ function GmailInbox({ userId, onCompose }) {
         )}
       </div>
 
-      {/* ── AI Reply Popup ── */}
       {aiReplyPopup && (
         <div style={{ position: 'fixed', inset: 0, background: '#000000cc', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ background: '#13131a', border: '1px solid #7c3aed44', borderRadius: '20px', padding: '1.5rem', maxWidth: '500px', width: '100%', boxSizing: 'border-box', boxShadow: '0 0 40px #7c3aed22' }}>
@@ -480,15 +459,11 @@ function GmailInbox({ userId, onCompose }) {
               <button onClick={() => setAiReplyPopup(null)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
             </div>
             <p style={{ margin: '0 0 0.8rem', fontSize: '0.78rem', color: '#888' }}>Replying to: <span style={{ color: '#ccc' }}>{aiReplyPopup.from}</span></p>
-
-            {/* Editable reply */}
             <textarea
               style={{ width: '100%', padding: '0.9rem', background: '#1e1e2e', border: '1px solid #7c3aed44', borderRadius: '10px', color: '#fff', fontSize: '0.85rem', outline: 'none', resize: 'vertical', minHeight: '120px', boxSizing: 'border-box', fontFamily: 'sans-serif', lineHeight: 1.6, marginBottom: '1rem' }}
               value={aiReplyPopup.editedReply}
               onChange={e => setAiReplyPopup(p => ({ ...p, editedReply: e.target.value }))}
             />
-
-            {/* Auto-reply checkbox */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem', padding: '0.8rem', background: '#1e1e2e', border: '1px solid #2a2a3a', borderRadius: '10px', marginBottom: '1rem', cursor: 'pointer' }}
               onClick={() => setAutoReplyChecked(p => !p)}>
               <div style={{ width: '18px', height: '18px', borderRadius: '4px', border: `2px solid ${autoReplyChecked ? '#7c3aed' : '#444'}`, background: autoReplyChecked ? '#7c3aed' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1px' }}>
@@ -501,7 +476,6 @@ function GmailInbox({ userId, onCompose }) {
                 </p>
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: '0.8rem' }}>
               <button onClick={sendAiReply} disabled={sending}
                 style={{ flex: 1, padding: '0.8rem', background: sending ? '#333' : '#ea4335', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem' }}>
@@ -628,7 +602,6 @@ function IGComments({ userId }) {
 
 // ─── YouTube Comments ─────────────────────────────────────────
 function YTComments({ userId, autoReplyEnabled }) {
-  const [comments, setComments] = useState([]);
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedVideo, setExpandedVideo] = useState(null);
@@ -649,7 +622,6 @@ function YTComments({ userId, autoReplyEnabled }) {
     axios.get(`${API_URL}/api/platforms/youtube/comments/${userId}`).then(({ data }) => {
       const now = Date.now();
       const filtered = (data.comments || []).filter(c => now - new Date(c.published).getTime() < 24 * 60 * 60 * 1000);
-      setComments(filtered);
       const videoMap = {};
       filtered.forEach(c => {
         if (!videoMap[c.videoId]) videoMap[c.videoId] = { videoId: c.videoId, videoTitle: c.videoTitle, comments: [] };
@@ -817,7 +789,7 @@ function YTComments({ userId, autoReplyEnabled }) {
   );
 }
 
-
+// ─── YouTube Upload ───────────────────────────────────────────
 function YTUpload({ userId }) {
   const [form, setForm] = useState({ title: '', description: '', tags: '' });
   const [videoFile, setVideoFile] = useState(null);
@@ -854,6 +826,7 @@ function YTUpload({ userId }) {
   );
 }
 
+// ─── LinkedIn Bot ─────────────────────────────────────────────
 function LinkedInBot({ userId }) {
   const [creds, setCreds] = useState({ email: '', password: '' });
   const [hasCredentials, setHasCredentials] = useState(false);
@@ -873,6 +846,9 @@ function LinkedInBot({ userId }) {
       .then(({ data }) => setHasCredentials(data.hasCredentials)).catch(console.error);
     axios.get(`${API_URL}/api/linkedin-bot/applied-jobs/${userId}`)
       .then(({ data }) => setAppliedJobs(data.jobs || [])).catch(console.error);
+    // ✅ FIXED: fetch resume name from server so it shows after page reload
+    axios.get(`${API_URL}/api/platforms/status/${userId}`)
+      .then(({ data }) => { if (data.resumeName) setResumeName(data.resumeName); }).catch(console.error);
   }, [userId]);
 
   const saveCredentials = async () => {
@@ -963,7 +939,6 @@ function LinkedInBot({ userId }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
           {!hasCredentials && <div style={{ background: '#ff440011', border: '1px solid #ff444433', borderRadius: '8px', padding: '0.6rem', fontSize: '0.78rem', color: '#ff8888' }}>⚠️ Set up credentials in Setup tab first!</div>}
 
-          {/* Resume upload */}
           <div style={{ background: '#1e1e2e', border: '1px dashed #7c3aed44', borderRadius: '10px', padding: '0.8rem' }}>
             <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#a855f7', fontWeight: 600 }}>📄 Resume (required for auto-apply)</p>
             {resumeName && <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#00ff88' }}>✅ {resumeName}</p>}
