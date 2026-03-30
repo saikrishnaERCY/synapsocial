@@ -5,9 +5,9 @@ require('dotenv').config();
  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET'].forEach(key => {
   if (process.env[key]) {
       process.env[key] = process.env[key]
-        .replace(/[\r\n\s]+$/g, '')    // Strip actual whitespace/newlines
-        .replace(/(\\n|\\r)+$/g, '')   // Strip literal "\n" characters
-        .replace(/^["']|["']$/g, '');  // Strip surrounding quotes
+        .replace(/^["']|["']$/g, '')   // 1. Strip surrounding quotes FIRST
+        .replace(/[\r\n\s]+$/g, '')    // 2. Strip actual whitespace/newlines
+        .replace(/(\\n|\\r)+$/g, '');  // 3. Strip literal "\n" characters
   }
 });
 
