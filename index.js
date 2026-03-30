@@ -3,7 +3,12 @@ require('dotenv').config();
 // Clean up env vars - strip hidden newlines/whitespace from URLs
 ['SERVER_URL', 'CLIENT_URL', 'YOUTUBE_CALLBACK_URL', 'GMAIL_CALLBACK_URL', 'INSTAGRAM_CALLBACK_URL',
  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET'].forEach(key => {
-  if (process.env[key]) process.env[key] = process.env[key].replace(/[\r\n\s]+$/g, '').replace(/^["']|["']$/g, '');
+  if (process.env[key]) {
+      process.env[key] = process.env[key]
+        .replace(/[\r\n\s]+$/g, '')    // Strip actual whitespace/newlines
+        .replace(/(\\n|\\r)+$/g, '')   // Strip literal "\n" characters
+        .replace(/^["']|["']$/g, '');  // Strip surrounding quotes
+  }
 });
 
 const express = require('express');
